@@ -50,6 +50,8 @@ export type AnalysisFinding = {
   projectPath: string;
   packageName: string;
   suggestion: string;
+  reference: string;
+  fixVersion: string;
 };
 
 export type AnalysisReport = {

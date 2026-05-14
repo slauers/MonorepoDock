@@ -295,6 +295,7 @@ p {
 .head-stats {
   display: flex;
   gap: 24px;
+  align-items: center;
 }
 
 .head-stats div {
@@ -536,9 +537,39 @@ tbody tr:hover {
   border-radius: 7px;
   background: #152847;
   color: #b6c9e4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.tab-label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 12px;
+  color: inherit;
+  opacity: 0;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+
+.tab:hover .tab-close,
+.tab:focus-within .tab-close {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+
+.tab-close:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .tab.active {
@@ -585,6 +616,76 @@ pre {
   flex: 1;
   min-width: 0;
   white-space: pre-wrap;
+}
+
+.analysis-item {
+  padding: 8px;
+  border: 1px solid #223652;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: #0f1c31;
+}
+
+.analysis-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.severity-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0 8px;
+  font-size: 11px;
+  margin-right: 6px;
+}
+
+.severity-critical {
+  border-color: #7f1d1d;
+  background: #3b0f12;
+  color: #ff9b9b;
+}
+
+.severity-high {
+  border-color: #8a2513;
+  background: #3e190f;
+  color: #ffb18f;
+}
+
+.severity-moderate,
+.severity-medium,
+.severity-warning {
+  border-color: #8a5f14;
+  background: #3a2a0d;
+  color: #ffd58c;
+}
+
+.severity-low {
+  border-color: #2f5d7f;
+  background: #10263a;
+  color: #9ed3ff;
+}
+
+.severity-info {
+  border-color: #2f7f5b;
+  background: #112b20;
+  color: #96e4c2;
+}
+
+.analysis-item a {
+  color: #84b8ff;
+}
+
+.analysis-details {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 @media (max-width: 1200px) {
@@ -698,6 +799,7 @@ pre {
   color: #2f3c4d;
 }
 
+
 .theme-light .toolbar label {
   color: #3a4a5e;
 }
@@ -787,10 +889,55 @@ pre {
   color: #1f4ea2;
 }
 
+.theme-light .tab-close:hover {
+  background: rgba(31, 78, 162, 0.14);
+}
+
 .theme-light pre {
   border-color: #d9e3f0;
   background: #f8fbff;
   color: #2b3b4f;
+}
+
+.theme-light .analysis-item {
+  border-color: #dbe3ef;
+  background: #ffffff;
+}
+
+.theme-light .analysis-item a {
+  color: #2f5fab;
+}
+
+.theme-light .severity-critical {
+  border-color: #f8b4b4;
+  background: #fff1f1;
+  color: #a02727;
+}
+
+.theme-light .severity-high {
+  border-color: #f6c0aa;
+  background: #fff4ef;
+  color: #9a3c1b;
+}
+
+.theme-light .severity-moderate,
+.theme-light .severity-medium,
+.theme-light .severity-warning {
+  border-color: #f2d9a3;
+  background: #fff9eb;
+  color: #8d6316;
+}
+
+.theme-light .severity-low {
+  border-color: #b9d8f6;
+  background: #edf6ff;
+  color: #1d5e97;
+}
+
+.theme-light .severity-info {
+  border-color: #b7e5ce;
+  background: #eefcf4;
+  color: #1e6b48;
 }
 
 .theme-light .copy-btn {
@@ -912,6 +1059,7 @@ pre {
   color: #50c550;
 }
 
+
 .theme-hacker h1,
 .theme-hacker .head-stats strong,
 .theme-hacker thead th,
@@ -1010,9 +1158,31 @@ pre {
   border-radius: 0;
 }
 
+.theme-hacker .tab-close {
+  border-radius: 0;
+}
+
+.theme-hacker .tab-close:hover {
+  background: #143014;
+}
+
 .theme-hacker .log-line:hover,
 .theme-hacker .log-line:focus-within {
   background: #001300;
+}
+
+.theme-hacker .analysis-item {
+  border-color: #2f7f2f;
+  background: #000000;
+  border-radius: 0;
+}
+
+.theme-hacker .analysis-item a {
+  color: #86ff86;
+}
+
+.theme-hacker .severity-pill {
+  border-radius: 0;
 }
 
 .theme-hacker * {

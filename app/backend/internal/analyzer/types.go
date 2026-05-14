@@ -15,5 +15,6 @@ type Finding struct {
 	ProjectPath string `json:"projectPath"`
 	PackageName string `json:"packageName"`
 	Suggestion string `json:"suggestion"`
+	Reference  string `json:"reference"`
+	FixVersion string `json:"fixVersion"`
 }
-

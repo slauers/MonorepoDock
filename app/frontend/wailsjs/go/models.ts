@@ -9,6 +9,8 @@ export namespace analyzer {
 	    projectPath: string;
 	    packageName: string;
 	    suggestion: string;
+	    reference: string;
+	    fixVersion: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Finding(source);
@@ -24,6 +26,8 @@ export namespace analyzer {
 	        this.projectPath = source["projectPath"];
 	        this.packageName = source["packageName"];
 	        this.suggestion = source["suggestion"];
+	        this.reference = source["reference"];
+	        this.fixVersion = source["fixVersion"];
 	    }
 	}
 	export class Report {
