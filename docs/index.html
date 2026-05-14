@@ -1,103 +1,966 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MonoDock</title>
-    <style>
-      :root {
-        color-scheme: dark;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>MonoDock — Visual Runtime for Monorepos</title>
+
+  <meta
+    name="description"
+    content="A desktop runtime for monorepos. Run targets, manage processes, inspect logs, and organize workspace workflows visually."
+  />
+
+  <meta property="og:title" content="MonoDock Desktop" />
+  <meta
+    property="og:description"
+    content="Docker Desktop-inspired runtime for monorepo workflows."
+  />
+  <meta property="og:type" content="website" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #050816;
+      --surface: #0c1224;
+      --surface-2: #101933;
+      --border: #1c2a4f;
+
+      --text: #f4f7ff;
+      --muted: #91a0c7;
+
+      --blue: #5ea0ff;
+      --blue-soft: rgba(94, 160, 255, 0.12);
+
+      --green: #3ddc97;
+      --green-soft: rgba(61, 220, 151, 0.14);
+
+      --red: #ff6b7a;
+      --purple: #8b7dff;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top, rgba(94,160,255,0.12), transparent 40%),
+        var(--bg);
+
+      color: var(--text);
+
+      font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* NAV */
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 999;
+
+      backdrop-filter: blur(12px);
+
+      background: rgba(5, 8, 22, 0.82);
+
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .nav-inner {
+      height: 72px;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+
+      border-radius: 10px;
+
+      background:
+        linear-gradient(
+          135deg,
+          var(--blue),
+          var(--purple)
+        );
+
+      box-shadow:
+        0 0 24px rgba(94,160,255,0.45);
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .nav-links a:hover {
+      color: white;
+    }
+
+    .nav-btn {
+      padding: 10px 18px;
+      border-radius: 12px;
+
+      background: var(--blue);
+      color: white;
+
+      font-weight: 600;
+
+      box-shadow:
+        0 0 24px rgba(94,160,255,0.22);
+
+      transition: 0.18s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px);
+      background: #78b2ff;
+    }
+
+    /* HERO */
+
+    .hero {
+      padding:
+        96px
+        0
+        72px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 48px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+
+      padding: 8px 14px;
+
+      border-radius: 999px;
+
+      background: rgba(61,220,151,0.12);
+
+      border: 1px solid rgba(61,220,151,0.18);
+
+      color: var(--green);
+
+      font-size: 0.82rem;
+      font-weight: 600;
+
+      margin-bottom: 24px;
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+
+      border-radius: 50%;
+
+      background: var(--green);
+
+      box-shadow:
+        0 0 12px var(--green);
+    }
+
+    h1 {
+      font-size: clamp(3rem, 7vw, 5.5rem);
+
+      line-height: 0.95;
+
+      letter-spacing: -0.06em;
+
+      margin-bottom: 24px;
+
+      max-width: 900px;
+    }
+
+    h1 span {
+      color: var(--blue);
+
+      text-shadow:
+        0 0 28px rgba(94,160,255,0.25);
+    }
+
+    .hero-sub {
+      max-width: 720px;
+
+      color: var(--muted);
+
+      font-size: 1.15rem;
+      line-height: 1.8;
+
+      margin-bottom: 38px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      gap: 10px;
+
+      padding: 14px 22px;
+
+      border-radius: 14px;
+
+      font-weight: 700;
+
+      transition: 0.18s ease;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+
+      color: white;
+
+      box-shadow:
+        0 0 28px rgba(94,160,255,0.24);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      background: #76afff;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.04);
+
+      border: 1px solid rgba(255,255,255,0.08);
+
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(255,255,255,0.18);
+      transform: translateY(-2px);
+    }
+
+    .hero-note {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* SCREENSHOTS */
+
+    .screenshot-wrap {
+      position: relative;
+    }
+
+    .screenshot-wrap::before {
+      content: "";
+
+      position: absolute;
+      inset: -40px;
+
+      background:
+        radial-gradient(
+          circle,
+          rgba(94,160,255,0.20),
+          transparent 70%
+        );
+
+      filter: blur(40px);
+
+      z-index: 0;
+    }
+
+    .screenshot {
+      position: relative;
+      z-index: 1;
+
+      overflow: hidden;
+
+      border-radius: 22px;
+
+      border: 1px solid rgba(255,255,255,0.08);
+
+      background: rgba(255,255,255,0.03);
+
+      box-shadow:
+        0 50px 120px rgba(0,0,0,0.65);
+    }
+
+    .screenshot img {
+      width: 100%;
+    }
+
+    /* SECTIONS */
+
+    section {
+      padding: 88px 0;
+    }
+
+    .section-head {
+      margin-bottom: 42px;
+    }
+
+    .label {
+      color: var(--blue);
+
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 4vw, 3.4rem);
+
+      line-height: 1.05;
+
+      letter-spacing: -0.05em;
+
+      margin-bottom: 18px;
+    }
+
+    .section-sub {
+      color: var(--muted);
+
+      max-width: 720px;
+
+      line-height: 1.8;
+    }
+
+    /* FEATURES */
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .feature {
+      padding: 28px;
+
+      border-radius: 18px;
+
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255,255,255,0.03),
+          rgba(255,255,255,0.02)
+        );
+
+      border: 1px solid rgba(255,255,255,0.06);
+
+      transition: 0.18s ease;
+    }
+
+    .feature:hover {
+      transform: translateY(-4px);
+
+      border-color: rgba(94,160,255,0.25);
+
+      background:
+        linear-gradient(
+          180deg,
+          rgba(94,160,255,0.08),
+          rgba(255,255,255,0.02)
+        );
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+
+      border-radius: 14px;
+
+      margin-bottom: 18px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: var(--blue-soft);
+
+      border: 1px solid rgba(94,160,255,0.18);
+
+      color: var(--blue);
+
+      font-weight: 800;
+    }
+
+    .feature h3 {
+      margin-bottom: 10px;
+
+      font-size: 1.05rem;
+    }
+
+    .feature p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* PHILOSOPHY */
+
+    .philosophy {
+      border-top: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255,255,255,0.02),
+          rgba(255,255,255,0.01)
+        );
+    }
+
+    .philosophy-grid {
+      margin-top: 42px;
+
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+    }
+
+    .principle {
+      padding: 24px;
+
+      border-radius: 18px;
+
+      background: rgba(255,255,255,0.03);
+
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .principle strong {
+      display: block;
+
+      color: white;
+
+      margin-bottom: 10px;
+
+      font-size: 1.05rem;
+    }
+
+    .principle p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* DOWNLOAD */
+
+    .download-box {
+      padding: 42px;
+
+      border-radius: 24px;
+
+      background:
+        linear-gradient(
+          180deg,
+          rgba(94,160,255,0.12),
+          rgba(255,255,255,0.03)
+        );
+
+      border: 1px solid rgba(94,160,255,0.14);
+
+      text-align: center;
+    }
+
+    .download-actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+
+      margin-top: 28px;
+    }
+
+    /* FOOTER */
+
+    footer {
+      padding:
+        48px
+        0
+        64px;
+
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+
+      flex-wrap: wrap;
+    }
+
+    .footer-left {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .footer-right {
+      display: flex;
+      gap: 18px;
+
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .footer-right a:hover {
+      color: white;
+    }
+
+    /* RESPONSIVE */
+
+    @media (max-width: 760px) {
+      .nav-links {
+        display: none;
       }
-      body {
-        margin: 0;
-        font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
-        background: #0b1220;
-        color: #e5e7eb;
-      }
-      .wrap {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 48px 24px;
-      }
+
       h1 {
-        margin: 0 0 12px;
-        font-size: 36px;
+        line-height: 1;
       }
-      p {
-        line-height: 1.6;
-        color: #cbd5e1;
-      }
-      .card {
-        margin-top: 24px;
-        border: 1px solid #1e293b;
-        background: #111827;
-        border-radius: 8px;
-        padding: 20px;
-      }
-      a {
-        color: #60a5fa;
-        text-decoration: none;
-      }
-      a:hover {
-        text-decoration: underline;
-      }
-      .muted {
-        margin-top: 22px;
-        color: #94a3b8;
-        font-size: 14px;
-      }
+
       .hero {
-        display: grid;
-        grid-template-columns: 110px 1fr;
-        gap: 20px;
-        align-items: center;
+        padding-top: 72px;
       }
-      .hero img {
-        width: 110px;
-        height: 110px;
-        border-radius: 20px;
+
+      .download-box {
+        padding: 28px;
       }
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        height: 36px;
-        padding: 0 14px;
-        border: 1px solid #3057a1;
-        border-radius: 8px;
-        background: #173f88;
-        color: #dce9ff;
-        text-decoration: none;
-      }
-      .btn:hover {
-        text-decoration: none;
-        background: #1e4a9e;
-      }
-    </style>
-  </head>
-  <body>
-    <main class="wrap">
-      <section class="hero">
-        <img src="./assets/monodock-icon.png" alt="MonoDock icon" />
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- NAV -->
+
+  <nav>
+    <div class="container">
+      <div class="nav-inner">
+
+        <div class="logo">
+          <div class="logo-mark">M</div>
+          MonoDock
+        </div>
+
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#runtime">Runtime</a>
+          <a href="#download">Download</a>
+
+          <a
+            href="https://github.com/slauers/monodock"
+            target="_blank"
+            rel="noopener"
+            class="nav-btn"
+          >
+            GitHub
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+
+  <section class="hero">
+    <div class="container">
+
+      <div class="hero-grid">
+
         <div>
-          <h1>MonoDock</h1>
+
+          <div class="badge">
+            <span class="badge-dot"></span>
+            Experimental desktop runtime for monorepos
+          </div>
+
+          <h1>
+            Stop managing your monorepo through
+            <span>terminal chaos.</span>
+          </h1>
+
+          <p class="hero-sub">
+            MonoDock gives your workspace a visual runtime.
+            Run targets, organize processes, inspect logs, restore sessions,
+            and manage workflows without drowning in terminal tabs and shell scripts.
+          </p>
+
+          <div class="hero-actions">
+
+            <a
+              href="https://github.com/slauers/monodock/releases/latest"
+              class="btn btn-primary"
+            >
+              Download
+            </a>
+
+            <a
+              href="https://github.com/slauers/monodock"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-secondary"
+            >
+              View on GitHub
+            </a>
+
+          </div>
+
+          <div class="hero-note">
+            Windows · macOS · Linux · Free & open source
+          </div>
+
+        </div>
+
+        <!-- SCREENSHOT -->
+
+        <div class="screenshot-wrap">
+          <div class="screenshot">
+            <img
+              src="assets/screenshot-main.png"
+              alt="MonoDock main workspace"
+            />
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+
+  <section id="features">
+    <div class="container">
+
+      <div class="section-head">
+        <div class="label">Features</div>
+
+        <h2>
+          Your monorepo finally has
+          a control panel.
+        </h2>
+
+        <p class="section-sub">
+          Most monorepo workflows become a collection of shell history,
+          terminal tabs, sticky notes, and emotional damage.
+          MonoDock centralizes the runtime layer into one desktop experience.
+        </p>
+      </div>
+
+      <div class="features-grid">
+
+        <div class="feature">
+          <div class="feature-icon">▶</div>
+
+          <h3>Run targets visually</h3>
+
           <p>
-            Visual runtime and observability desktop app for monorepos. MonoDock helps you detect projects, run
-            targets, manage processes, and inspect logs with a Docker Desktop style workflow.
+            Execute workspace targets without memorizing commands
+            or juggling terminal windows.
           </p>
         </div>
-      </section>
-      <section class="card">
-        <h2>Repository</h2>
-        <p>
-          Source code and releases:
-          <a href="https://github.com/slauers/MonorepoDock" target="_blank" rel="noreferrer">github.com/slauers/MonorepoDock</a>
+
+        <div class="feature">
+          <div class="feature-icon">◎</div>
+
+          <h3>Process orchestration</h3>
+
+          <p>
+            Start, stop, restart, and inspect processes from a unified runtime view.
+          </p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">▣</div>
+
+          <h3>Run profiles</h3>
+
+          <p>
+            Group multiple targets into reusable runtime profiles
+            like dev environments, workers, or test stacks.
+          </p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">⌘</div>
+
+          <h3>Live logs</h3>
+
+          <p>
+            Stream logs in real time with process tabs,
+            status indicators, and copy support.
+          </p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">↺</div>
+
+          <h3>Session restore</h3>
+
+          <p>
+            Recover previous running sessions after reopening the app,
+            because developers deserve rights too.
+          </p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">⚑</div>
+
+          <h3>Workspace analysis</h3>
+
+          <p>
+            Inspect vulnerabilities, dependency inconsistencies,
+            and hoist opportunities visually.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RUNTIME -->
+
+  <section id="runtime">
+    <div class="container">
+
+      <div class="section-head">
+
+        <div class="label">Runtime</div>
+
+        <h2>
+          See what is running.
+          Restore what matters.
+        </h2>
+
+        <p class="section-sub">
+          MonoDock keeps processes, profiles, logs,
+          and runtime states visible in one place,
+          so your workspace stops behaving like a haunted terminal multiplexer.
         </p>
-        <p>
-          <a class="btn" href="./screenshots.html">See Screenshots</a>
+
+      </div>
+
+      <div class="screenshot-wrap">
+        <div class="screenshot">
+          <img
+            src="assets/screenshot-runtime.png"
+            alt="MonoDock runtime and logs"
+          />
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- PHILOSOPHY -->
+
+  <section class="philosophy">
+    <div class="container">
+
+      <div class="section-head">
+        <div class="label">Philosophy</div>
+
+        <h2>
+          Built for workflows.
+          Not for screenshots.
+        </h2>
+
+        <p class="section-sub">
+          MonoDock is intentionally focused.
+          The goal is not to become another overloaded IDE.
+          It exists to make monorepo runtime management faster,
+          clearer, and less annoying.
         </p>
-      </section>
-      <p class="muted">by slauers</p>
-    </main>
-  </body>
+      </div>
+
+      <div class="philosophy-grid">
+
+        <div class="principle">
+          <strong>Visual runtime</strong>
+
+          <p>
+            Processes should be observable without requiring
+            six terminal panes and a memory palace.
+          </p>
+        </div>
+
+        <div class="principle">
+          <strong>One-click workflows</strong>
+
+          <p>
+            Start environments quickly without rebuilding
+            your shell history every morning.
+          </p>
+        </div>
+
+        <div class="principle">
+          <strong>Focused desktop UX</strong>
+
+          <p>
+            Fewer layers. Faster actions.
+            Less “where the hell is that option”.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+
+  <section id="download">
+    <div class="container">
+
+      <div class="download-box">
+
+        <div class="label">
+          Download
+        </div>
+
+        <h2>
+          Try MonoDock
+        </h2>
+
+        <p class="section-sub" style="margin: 0 auto;">
+          Free and open source.
+          Built with Wails, Go, React, TypeScript,
+          and an unreasonable amount of “this should probably be a real product”.
+        </p>
+
+        <div class="download-actions">
+
+          <a
+            href="https://github.com/slauers/monodock/releases/latest"
+            class="btn btn-primary"
+          >
+            Latest Release
+          </a>
+
+          <a
+            href="https://github.com/slauers/monodock"
+            target="_blank"
+            rel="noopener"
+            class="btn btn-secondary"
+          >
+            GitHub Repository
+          </a>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+
+  <footer>
+    <div class="container">
+
+      <div class="footer-inner">
+
+        <div class="footer-left">
+          MonoDock Desktop · built by slauers
+        </div>
+
+        <div class="footer-right">
+          <a
+            href="https://github.com/slauers/monodock"
+            target="_blank"
+            rel="noopener"
+          >
+            GitHub
+          </a>
+
+          <a
+            href="https://github.com/slauers/monodock/releases"
+            target="_blank"
+            rel="noopener"
+          >
+            Releases
+          </a>
+
+          <a
+            href="https://github.com/slauers/monodock/issues"
+            target="_blank"
+            rel="noopener"
+          >
+            Issues
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </footer>
+
+</body>
 </html>

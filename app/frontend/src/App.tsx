@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
-import type { Target } from "./types/workspace";
+import type { ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target } from "./types/workspace";
 import { getLocale, t } from "./i18n";
 import { wailsService } from "./services/wails";
 
 const ICON = {
   moon: "\u263E",
   sun: "\u2600",
-  dot: "\u25CF",
   play: "\u25B6",
   stop: "\u25A0",
   restart: "\u21BB",
@@ -15,6 +14,7 @@ const ICON = {
   bullet: "\u2022",
   copy: "\u29C9",
   close: "\u00D7",
+  plus: "+",
 };
 
 function workspaceLabel(path: string): string {
@@ -143,10 +143,36 @@ export default function App() {
   const [hackerMode, setHackerMode] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [closedLogTabs, setClosedLogTabs] = useState<string[]>([]);
+  const [profiles, setProfiles] = useState<RunProfile[]>([]);
+  const [profileStates, setProfileStates] = useState<Record<string, ProfileRuntimeState>>({});
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [activeProfileTargetId, setActiveProfileTargetId] = useState("");
+  const [expandedProfiles, setExpandedProfiles] = useState<string[]>([]);
+  const [lastSession, setLastSession] = useState<RuntimeSession | null>(null);
+  const [ignoredRestoreRoots, setIgnoredRestoreRoots] = useState<string[]>([]);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState("");
+  const [runningProfileIDs, setRunningProfileIDs] = useState<string[]>([]);
+  const [stoppingProfileIDs, setStoppingProfileIDs] = useState<string[]>([]);
+
+  const loadProfiles = async () => {
+    try {
+      setProfileLoading(true);
+      const items = await wailsService.listProfiles();
+      setProfiles(items);
+      const runtimeStates = await wailsService.listProfileRuntimeStates();
+      const indexed: Record<string, ProfileRuntimeState> = {};
+      for (const state of runtimeStates) indexed[state.profileID] = state;
+      setProfileStates(indexed);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   useEffect(() => {
     bindEvents();
     void loadRecents();
+    void loadProfiles();
   }, [loadRecents, bindEvents]);
 
   useEffect(() => {
@@ -157,6 +183,26 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("monodock-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const root = selectedPath.trim();
+    if (!root || ignoredRestoreRoots.includes(root)) {
+      setLastSession(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const session = await wailsService.getLastRuntimeSession(root);
+        if (session?.items?.length > 0) {
+          setLastSession(session);
+          return;
+        }
+        setLastSession(null);
+      } catch {
+        setLastSession(null);
+      }
+    })();
+  }, [selectedPath, ignoredRestoreRoots]);
 
   const rows = useMemo(() => {
     const projectRows: { projectName: string; projectPath: string; target: Target }[] = [];
@@ -226,6 +272,150 @@ export default function App() {
     setClosedLogTabs((state) => state.filter((id) => id !== processId));
     setActiveLogProcess(processId);
     setView("logs");
+  };
+
+  const runProfile = async (profileId: string) => {
+    setRunningProfileIDs((state) => (state.includes(profileId) ? state : [...state, profileId]));
+    try {
+      await wailsService.runProfile(profileId);
+      await loadProfiles();
+      if (selectedPath) await inspect(selectedPath);
+    } finally {
+      setRunningProfileIDs((state) => state.filter((id) => id !== profileId));
+    }
+  };
+
+  const stopProfile = async (profileId: string) => {
+    setStoppingProfileIDs((state) => (state.includes(profileId) ? state : [...state, profileId]));
+    try {
+      await wailsService.stopProfile(profileId);
+      await loadProfiles();
+      if (selectedPath) await inspect(selectedPath);
+    } finally {
+      setStoppingProfileIDs((state) => state.filter((id) => id !== profileId));
+    }
+  };
+
+  const deleteProfile = async (profileId: string) => {
+    if (!window.confirm(t("confirmDeleteProfile", locale))) return;
+    await wailsService.deleteProfile(profileId);
+    await loadProfiles();
+  };
+
+  const profileStateLabel = (state: ProfileRuntimeState | undefined): string => {
+    if (!state) return "Idle";
+    switch (state.status) {
+      case "running":
+        return "Running";
+      case "partial":
+        return "Partial";
+      case "failed":
+        return "Failed";
+      case "stopped":
+        return "Stopped";
+      default:
+        return "Idle";
+    }
+  };
+
+  const profileStateSummary = (state: ProfileRuntimeState | undefined): string => {
+    if (!state || state.status === "idle") return "Never executed";
+    if (state.status === "running") return `${state.runningCount} processes`;
+    const parts: string[] = [];
+    if (state.runningCount > 0) parts.push(`${state.runningCount} running`);
+    if (state.failedCount > 0) parts.push(`${state.failedCount} failed`);
+    if (state.stoppedCount > 0) parts.push(`${state.stoppedCount} stopped`);
+    return parts.join(" • ");
+  };
+
+  const profileItemStatus = (state: ProfileRuntimeState | undefined, item: ProfileItem) => {
+    if (!state) return "idle";
+    const processByID = new Map(processes.map((proc) => [proc.id, proc]));
+    const matchedIDs = state.processIDs.filter((id) => {
+      const proc = processByID.get(id);
+      return proc && proc.workDir === item.workDir && proc.command === item.command;
+    });
+    if (matchedIDs.length === 0) return "idle";
+    const matched = matchedIDs.map((id) => processByID.get(id)).filter(Boolean);
+    if (matched.some((p) => p?.status === "running" || p?.status === "starting")) return "running";
+    if (matched.some((p) => p?.status === "failed")) return "failed";
+    if (matched.some((p) => p?.status === "stopped")) return "stopped";
+    if (matched.some((p) => p?.status === "exited")) return "success";
+    return "stopped";
+  };
+
+  const makeId = () => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return `id-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  };
+
+  const buildProfileItem = (projectName: string, target: Target): ProfileItem => ({
+    id: makeId(),
+    project: projectName,
+    target: target.name,
+    workDir: target.workDir,
+    command: target.command,
+  });
+
+  const hasDuplicateItem = (profile: RunProfile, item: ProfileItem) =>
+    profile.items.some(
+      (existing) =>
+        existing.project === item.project &&
+        existing.target === item.target &&
+        existing.command === item.command,
+    );
+
+  const createProfileFromTarget = async (projectName: string, target: Target) => {
+    const rawName = window.prompt(t("profileNamePrompt", locale), `${projectName} ${target.name}`.trim());
+    const name = rawName?.trim() ?? "";
+    if (!name) return;
+
+    const now = new Date().toISOString();
+    const profile: RunProfile = {
+      id: makeId(),
+      name,
+      createdAt: now,
+      updatedAt: now,
+      items: [buildProfileItem(projectName, target)],
+    };
+    await wailsService.saveProfile(profile);
+    await loadProfiles();
+    setActiveProfileTargetId("");
+  };
+
+  const addTargetToExistingProfile = async (profile: RunProfile, projectName: string, target: Target) => {
+    const item = buildProfileItem(projectName, target);
+    if (hasDuplicateItem(profile, item)) {
+      window.alert(t("itemAlreadyInProfile", locale));
+      return;
+    }
+
+    const updated: RunProfile = {
+      ...profile,
+      updatedAt: new Date().toISOString(),
+      items: [...profile.items, item],
+    };
+    await wailsService.saveProfile(updated);
+    await loadProfiles();
+    setActiveProfileTargetId("");
+  };
+
+  const restoreSession = async () => {
+    const root = selectedPath.trim();
+    if (!root) return;
+    try {
+      setRestoreLoading(true);
+      const restored = await wailsService.restoreRuntimeSession(root);
+      setLastSession(null);
+      setRestoreMessage(`${restored.length} ${t("restoredProcesses", locale)}`);
+      await inspect(root);
+      await loadProfiles();
+    } finally {
+      setRestoreLoading(false);
+      window.setTimeout(() => setRestoreMessage(""), 2000);
+    }
   };
 
   return (
@@ -332,6 +522,76 @@ export default function App() {
               ))}
             </ul>
           </div>
+          <div className="profiles-block">
+            <div className="recent-title">{t("runProfiles", locale).toUpperCase()}</div>
+            <div className="profiles-scroll">
+              {profileLoading && <div className="profiles-empty">Loading...</div>}
+              {!profileLoading && profiles.length === 0 && (
+                <div className="profiles-empty">
+                  <div>{t("noRunProfilesYet", locale)}</div>
+                  <div className="profiles-hint">{t("runProfilesHint", locale)}</div>
+                </div>
+              )}
+              {!profileLoading && profiles.length > 0 && (
+                <ul className="profiles-list">
+                  {profiles.map((profile) => (
+                    <li key={profile.id} className="profile-item">
+                    <div className="profile-meta">
+                      <button
+                        className="profile-name-btn"
+                        onClick={() =>
+                          setExpandedProfiles((state) =>
+                            state.includes(profile.id) ? state.filter((id) => id !== profile.id) : [...state, profile.id],
+                          )
+                        }
+                        title={profile.name}
+                      >
+                        <span className="profile-expand">{expandedProfiles.includes(profile.id) ? "▼" : "▶"}</span>
+                        <span className="profile-head-dot" />
+                        {profile.name}
+                      </button>
+                    </div>
+                    <div className="profile-actions">
+                      <button className="profile-run-btn" onClick={() => void runProfile(profile.id)} title={t("run", locale)} disabled={runningProfileIDs.includes(profile.id)}>
+                        {runningProfileIDs.includes(profile.id) ? <span className="mini-spinner" aria-hidden /> : ICON.play} {t("run", locale)}
+                      </button>
+                      <button
+                        className="profile-stop-btn"
+                        onClick={() => void stopProfile(profile.id)}
+                        title="Stop all"
+                        disabled={!profileStates[profile.id] || profileStates[profile.id].runningCount === 0 || stoppingProfileIDs.includes(profile.id)}
+                      >
+                        {stoppingProfileIDs.includes(profile.id) ? <span className="mini-spinner" aria-hidden /> : ICON.stop} Stop all
+                      </button>
+                      <button className="profile-delete-btn" onClick={() => void deleteProfile(profile.id)} title={t("delete", locale)} aria-label={t("delete", locale)}>
+                        {ICON.close}
+                      </button>
+                    </div>
+                    <div className="profile-runtime">
+                      <span className={`runtime-dot ${(profileStates[profile.id]?.status ?? "idle")}`} />
+                      <span className={`runtime-status ${(profileStates[profile.id]?.status ?? "idle")}`}>{profileStateLabel(profileStates[profile.id])}</span>
+                      <span className="runtime-meta">{profileStateSummary(profileStates[profile.id])}</span>
+                    </div>
+                    {expandedProfiles.includes(profile.id) && (
+                      <div className="profile-tree">
+                        {profile.items.map((item) => {
+                          const itemStatus = profileItemStatus(profileStates[profile.id], item);
+                          return (
+                            <div key={item.id} className="profile-tree-row">
+                              <span className={`runtime-dot ${itemStatus}`} />
+                              <span className={`runtime-status ${itemStatus}`}>{item.target}</span>
+                              <span className="runtime-meta mono">{item.command}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </aside>
 
         <section className="content-area">
@@ -355,6 +615,29 @@ export default function App() {
               </div>
             </div>
           </div>
+          {lastSession && lastSession.items.length > 0 && (
+            <div className="restore-banner">
+              <div className="restore-banner-text">
+                <div className="restore-title">{t("previousSessionFound", locale)}</div>
+                <div className="restore-subtitle">{lastSession.items.length} {t("previousSessionDetails", locale)}</div>
+              </div>
+              <div className="restore-banner-actions">
+                <button className="restore-btn" disabled={restoreLoading} onClick={() => void restoreSession()}>
+                  {restoreLoading ? <span className="mini-spinner" aria-hidden /> : t("restore", locale)}
+                </button>
+                <button
+                  className="ignore-btn"
+                  onClick={() => {
+                    setIgnoredRestoreRoots((state) => [...state, selectedPath]);
+                    setLastSession(null);
+                  }}
+                >
+                  {t("ignore", locale)}
+                </button>
+              </div>
+            </div>
+          )}
+          {restoreMessage && <div className="restore-feedback">{restoreMessage}</div>}
 
           {view === "projects" && (
             <div className="toolbar">
@@ -385,9 +668,7 @@ export default function App() {
                     return (
                       <tr key={row.target.id} className={rowClassFromStatus(status)}>
                         <td>
-                          <span className={`status-dot ${status}`} title={statusLabel(status, locale)}>
-                            {ICON.dot}
-                          </span>
+                          <span className={`status-dot ${status}`} title={statusLabel(status, locale)} />
                         </td>
                         <td>{row.projectName}</td>
                         <td>{row.target.name}</td>
@@ -408,6 +689,41 @@ export default function App() {
                                 {ICON.logs}
                               </button>
                             )}
+                            <div className="profile-action-wrap">
+                              <button
+                                className="profile-link-btn"
+                                title={t("addToProfile", locale)}
+                                onClick={() => setActiveProfileTargetId((state) => (state === row.target.id ? "" : row.target.id))}
+                              >
+                                {ICON.plus} Profile
+                              </button>
+                              {activeProfileTargetId === row.target.id && (
+                                <div className="profile-popover">
+                                  <button
+                                    className="profile-popover-btn"
+                                    onClick={() => void createProfileFromTarget(row.projectName, row.target)}
+                                  >
+                                    {t("createNewProfile", locale)}
+                                  </button>
+                                  <div className="profile-popover-label">{t("addToExistingProfile", locale)}</div>
+                                  <div className="profile-popover-list">
+                                    {profiles.length === 0 && <div className="profile-popover-empty">{t("noRunProfilesYet", locale)}</div>}
+                                    {profiles.map((profile) => (
+                                      <button
+                                        key={profile.id}
+                                        className="profile-popover-btn secondary"
+                                        onClick={() => void addTargetToExistingProfile(profile, row.projectName, row.target)}
+                                      >
+                                        {profile.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <button className="profile-popover-close" onClick={() => setActiveProfileTargetId("")}>
+                                    {t("cancel", locale)}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -569,7 +885,7 @@ export default function App() {
                 ))}
               </div>
               <pre>
-                {activeLogProcessId === "" && <div>{t("selectLogTab", locale)}</div>}
+                {activeLogProcessId === "" && <div className="empty-state">{t("selectLogTab", locale)}</div>}
                 {visibleLogs.map((entry, index) => (
                   <div className="log-line" key={`${entry.timestamp}-${index}`}>
                     <span className="log-line-text">

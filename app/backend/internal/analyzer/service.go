@@ -161,13 +161,13 @@ func runNPMAudit(ctx context.Context, root string) []Finding {
 	lockfile := detectLockfile(root)
 	if lockfile == "" {
 		return []Finding{{
-			ID:         "audit-skipped-no-lockfile",
-			Category:   "security",
-			Severity:   "info",
-			Title:      "Dependency audit skipped",
-			Details:    "No lockfile found at workspace root.",
+			ID:          "audit-skipped-no-lockfile",
+			Category:    "security",
+			Severity:    "info",
+			Title:       "Dependency audit skipped",
+			Details:     "No lockfile found at workspace root.",
 			ProjectPath: "/",
-			Suggestion: "Install dependencies first to generate lockfile, then run analysis again.",
+			Suggestion:  "Install dependencies first to generate lockfile, then run analysis again.",
 		}}
 	}
 
@@ -329,7 +329,7 @@ func buildLogFinding(id string, bin string, args []string, runErr error, output 
 	}
 	details := fmt.Sprintf("command: %s %s | status: %s", bin, strings.Join(args, " "), status)
 	if output != "" {
-		details += " | output: " + trimForLog(output, 900)
+		details += " | output: " + formatOutputForLog(output, 900)
 	}
 	if runErr != nil {
 		details += " | error: " + runErr.Error()
@@ -344,9 +344,19 @@ func buildLogFinding(id string, bin string, args []string, runErr error, output 
 	}
 }
 
-func trimForLog(input string, max int) string {
-	clean := strings.ReplaceAll(strings.ReplaceAll(input, "\r", " "), "\n", " ")
-	clean = strings.TrimSpace(clean)
+func formatOutputForLog(input string, max int) string {
+	clean := strings.TrimSpace(strings.ReplaceAll(input, "\r", ""))
+	if clean == "" {
+		return ""
+	}
+
+	var parsed any
+	if err := json.Unmarshal([]byte(clean), &parsed); err == nil {
+		if pretty, err := json.MarshalIndent(parsed, "", "  "); err == nil {
+			clean = string(pretty)
+		}
+	}
+
 	if len(clean) <= max {
 		return clean
 	}
