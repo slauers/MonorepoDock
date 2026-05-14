@@ -18,6 +18,7 @@ jobs:
           - os: windows-latest
             artifact: monodock-windows-amd64
             archive_file: app/backend/build/monodock-windows-amd64.zip
+            installer_file: app/backend/build/monodock-installer-windows-amd64.exe
           - os: macos-latest
             artifact: monodock-macos-amd64
             archive_file: app/backend/build/monodock-macos-amd64.tar.gz
@@ -75,6 +76,45 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path app/backend/build/bin/* -DestinationPath app/backend/build/monodock-windows-amd64.zip
 
+      - name: Build Windows installer (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          @"
+          [Setup]
+          AppId={{A26E07CB-5AFC-4FC4-B80A-70C92C437A5D}
+          AppName=MonoDock
+          AppVersion=${{ github.ref_name }}
+          AppPublisher=slauers
+          DefaultDirName={autopf}\MonoDock
+          DefaultGroupName=MonoDock
+          DisableProgramGroupPage=yes
+          OutputDir=app\backend\build
+          OutputBaseFilename=monodock-installer-windows-amd64
+          Compression=lzma
+          SolidCompression=yes
+          WizardStyle=modern
+          SetupIconFile=app\backend\build\windows\icon.ico
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Files]
+          Source: "app\backend\build\bin\monodock.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+          [Icons]
+          Name: "{autoprograms}\MonoDock"; Filename: "{app}\monodock.exe"
+          Name: "{autodesktop}\MonoDock"; Filename: "{app}\monodock.exe"; Tasks: desktopicon
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+
+          [Run]
+          Filename: "{app}\monodock.exe"; Description: "Launch MonoDock"; Flags: nowait postinstall skipifsilent
+          "@ | Set-Content -LiteralPath app\backend\build\monodock.iss -Encoding ASCII
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" app\backend\build\monodock.iss
+
       - name: Package release artifact (macOS/Linux)
         if: runner.os != 'Windows'
         run: tar -C app/backend/build -czf ${{ matrix.archive_file }} bin
@@ -84,6 +124,13 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.archive_file }}
+
+      - name: Upload installer artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monodock-windows-installer-amd64
+          path: ${{ matrix.installer_file }}
 
   release:
     needs: build
@@ -100,4 +147,5 @@ jobs:
           files: |
             release-artifacts/**/*.zip
             release-artifacts/**/*.tar.gz
+            release-artifacts/**/*.exe
           generate_release_notes: true

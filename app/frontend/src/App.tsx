@@ -141,6 +141,7 @@ export default function App() {
   const [hackerMode, setHackerMode] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [closedLogTabs, setClosedLogTabs] = useState<string[]>([]);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     void loadRecents();
@@ -155,6 +156,11 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("monodock-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowSplash(false), 1300);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const rows = useMemo(() => {
     const projectRows: { projectName: string; projectPath: string; target: Target }[] = [];
@@ -227,7 +233,16 @@ export default function App() {
   };
 
   return (
-    <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
+    <>
+      {showSplash && (
+        <div className={`splash-screen ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
+          <div className="splash-content">
+            <div className="splash-title">MonoDock</div>
+            <div className="splash-subtitle">Monorepo Operations Desktop</div>
+          </div>
+        </div>
+      )}
+      <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
       <header className="top-header">
         <div className="header-left">
           <div>MonoDock Desktop</div>
@@ -580,6 +595,7 @@ export default function App() {
         </div>
         <span className="footer-right">{t("by", locale)}</span>
       </footer>
-    </main>
+      </main>
+    </>
   );
 }

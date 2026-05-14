@@ -17,6 +17,28 @@
   color-scheme: dark;
 }
 
+.theme-light.splash-screen {
+  background: #f3f5f8;
+}
+
+.theme-light .splash-title {
+  color: #1f2d3f;
+}
+
+.theme-light .splash-subtitle {
+  color: #667a90;
+}
+
+.theme-hacker.splash-screen {
+  background: #000000;
+}
+
+.theme-hacker .splash-title,
+.theme-hacker .splash-subtitle {
+  color: #86ff86;
+  font-family: Consolas, "Courier New", monospace;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -35,6 +57,32 @@ body {
   display: grid;
   grid-template-rows: 56px 1fr 32px;
   overflow: hidden;
+}
+
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0c1424;
+}
+
+.splash-content {
+  text-align: center;
+}
+
+.splash-title {
+  font-size: 44px;
+  font-weight: 700;
+  color: #f2f7ff;
+}
+
+.splash-subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #8ea5c5;
 }
 
 .top-header {
