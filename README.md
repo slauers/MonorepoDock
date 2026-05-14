@@ -1,0 +1,56 @@
+# MonoDock
+
+MonoDock is a visual desktop runtime for monorepos.  
+It is designed to feel like Docker Desktop for workspace operations: detect projects, run targets, manage processes, and inspect logs in one place.
+
+## Stack
+
+- Wails + Go (backend/app shell)
+- React + TypeScript + Vite (frontend)
+- Zustand (state)
+
+## Current Features
+
+- Open and inspect local workspaces
+- Detect monorepo tools and package managers
+- List projects and runnable targets
+- Start/stop/restart processes
+- Live logs with tabs, close tab, and copy actions
+- Analyze dependencies (security + consistency + hoist opportunities)
+- Recent workspaces, theme toggle, and hacker mode
+
+## Local Development
+
+Requirements:
+
+- Go
+- Node.js + npm
+- Wails CLI
+
+Run:
+
+```bash
+cd app/backend
+wails dev
+```
+
+## Labs
+
+Sample monorepos for testing are available under `labs/`:
+
+- `pnpm-basic`
+- `nx-basic`
+- `turbo-basic`
+- `go-workspace`
+- `docker-stack`
+
+## GitHub Pages
+
+Project page and screenshots:
+
+- https://slauers.github.io/MonorepoDock/
+- https://slauers.github.io/MonorepoDock/screenshots.html
+
+---
+
+by slauers
