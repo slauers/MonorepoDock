@@ -59,3 +59,19 @@ export type AnalysisReport = {
   scannedAt: string;
   findings: AnalysisFinding[];
 };
+
+export type ProfileItem = {
+  id: string;
+  project: string;
+  target: string;
+  workDir: string;
+  command: string;
+};
+
+export type RunProfile = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  items: ProfileItem[];
+};

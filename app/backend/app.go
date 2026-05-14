@@ -8,6 +8,7 @@ import (
 
 	"monodock/backend/internal/analyzer"
 	"monodock/backend/internal/config"
+	"monodock/backend/internal/profiles"
 	"monodock/backend/internal/runner"
 	"monodock/backend/internal/workspace"
 
@@ -18,6 +19,7 @@ type App struct {
 	ctx         context.Context
 	workspace   *workspace.Service
 	analyzer    *analyzer.Service
+	profiles    *profiles.Service
 	processes   *runner.Manager
 	recentStore *config.Store
 }
@@ -32,10 +34,15 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	profilesSvc, err := profiles.NewService(filepath.Join(cfgDir, "monodock"))
+	if err != nil {
+		return nil, err
+	}
 
 	return &App{
 		workspace:   workspace.NewService(),
 		analyzer:    analyzer.NewService(),
+		profiles:    profilesSvc,
 		processes:   runner.NewManager(),
 		recentStore: store,
 	}, nil
@@ -165,4 +172,22 @@ func (a *App) CloseApp() {
 		return
 	}
 	runtime.Quit(a.ctx)
+}
+
+func (a *App) ListProfiles() ([]profiles.Profile, error) {
+	return a.profiles.ListProfiles()
+}
+
+func (a *App) SaveProfile(profile profiles.Profile) error {
+	return a.profiles.SaveProfile(profile)
+}
+
+func (a *App) DeleteProfile(profileID string) error {
+	return a.profiles.DeleteProfile(profileID)
+}
+
+func (a *App) RunProfile(profileID string) ([]runner.Process, error) {
+	return a.profiles.RunProfile(profileID, func(item profiles.ProfileItem) (runner.Process, error) {
+		return a.RunCommand(item.WorkDir, item.Command)
+	})
 }

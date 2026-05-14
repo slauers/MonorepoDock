@@ -4,14 +4,19 @@ import {analyzer} from '../models';
 import {workspace} from '../models';
 import {runner} from '../models';
 import {config} from '../models';
+import {profiles} from '../models';
 
 export function AnalyzeWorkspace(arg1:string):Promise<analyzer.Report>;
 
 export function CloseApp():Promise<void>;
 
+export function DeleteProfile(arg1:string):Promise<void>;
+
 export function InspectWorkspace(arg1:string):Promise<workspace.Summary>;
 
 export function ListProcesses():Promise<Array<runner.Process>>;
+
+export function ListProfiles():Promise<Array<profiles.Profile>>;
 
 export function ListRecentWorkspaces():Promise<Array<config.RecentWorkspace>>;
 
@@ -20,5 +25,9 @@ export function OpenWorkspaceDialog():Promise<string>;
 export function RestartCommand(arg1:string):Promise<runner.Process>;
 
 export function RunCommand(arg1:string,arg2:string):Promise<runner.Process>;
+
+export function RunProfile(arg1:string):Promise<Array<runner.Process>>;
+
+export function SaveProfile(arg1:profiles.Profile):Promise<void>;
 
 export function StopCommand(arg1:string):Promise<void>;

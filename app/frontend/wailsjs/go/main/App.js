@@ -10,12 +10,20 @@ export function CloseApp() {
   return window['go']['main']['App']['CloseApp']();
 }
 
+export function DeleteProfile(arg1) {
+  return window['go']['main']['App']['DeleteProfile'](arg1);
+}
+
 export function InspectWorkspace(arg1) {
   return window['go']['main']['App']['InspectWorkspace'](arg1);
 }
 
 export function ListProcesses() {
   return window['go']['main']['App']['ListProcesses']();
+}
+
+export function ListProfiles() {
+  return window['go']['main']['App']['ListProfiles']();
 }
 
 export function ListRecentWorkspaces() {
@@ -32,6 +40,14 @@ export function RestartCommand(arg1) {
 
 export function RunCommand(arg1, arg2) {
   return window['go']['main']['App']['RunCommand'](arg1, arg2);
+}
+
+export function RunProfile(arg1) {
+  return window['go']['main']['App']['RunProfile'](arg1);
+}
+
+export function SaveProfile(arg1) {
+  return window['go']['main']['App']['SaveProfile'](arg1);
 }
 
 export function StopCommand(arg1) {

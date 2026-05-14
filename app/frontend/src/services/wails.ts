@@ -1,4 +1,4 @@
-import type { AnalysisReport, ProcessInfo, RecentWorkspace, WorkspaceSummary } from "../types/workspace";
+import type { AnalysisReport, ProcessInfo, RecentWorkspace, RunProfile, WorkspaceSummary } from "../types/workspace";
 
 declare global {
   interface Window {
@@ -14,6 +14,10 @@ declare global {
           ListProcesses: () => Promise<ProcessInfo[]>;
           AnalyzeWorkspace: (root: string) => Promise<AnalysisReport>;
           CloseApp: () => Promise<void>;
+          ListProfiles: () => Promise<RunProfile[]>;
+          SaveProfile: (profile: RunProfile) => Promise<void>;
+          DeleteProfile: (profileID: string) => Promise<void>;
+          RunProfile: (profileID: string) => Promise<ProcessInfo[]>;
         };
       };
     };
@@ -41,6 +45,10 @@ export const wailsService = {
   listProcesses: () => appApi().ListProcesses(),
   analyzeWorkspace: (root: string) => appApi().AnalyzeWorkspace(root),
   closeApp: () => appApi().CloseApp(),
+  listProfiles: () => appApi().ListProfiles(),
+  saveProfile: (profile: RunProfile) => appApi().SaveProfile(profile),
+  deleteProfile: (profileID: string) => appApi().DeleteProfile(profileID),
+  runProfile: (profileID: string) => appApi().RunProfile(profileID),
   onLog: (cb: (payload: unknown) => void) => {
     if (!window.runtime?.EventsOn) {
       return () => undefined;
