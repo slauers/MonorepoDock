@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
 import type { Target } from "./types/workspace";
 import { getLocale, t } from "./i18n";
+import { wailsService } from "./services/wails";
 
 const ICON = {
   moon: "\u263E",
@@ -13,6 +14,7 @@ const ICON = {
   logs: "\u2261",
   bullet: "\u2022",
   copy: "\u29C9",
+  close: "\u00D7",
 };
 
 function workspaceLabel(path: string): string {
@@ -141,11 +143,10 @@ export default function App() {
   const [hackerMode, setHackerMode] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [closedLogTabs, setClosedLogTabs] = useState<string[]>([]);
-  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    void loadRecents();
     bindEvents();
+    void loadRecents();
   }, [loadRecents, bindEvents]);
 
   useEffect(() => {
@@ -156,11 +157,6 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("monodock-theme", theme);
   }, [theme]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShowSplash(false), 1300);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   const rows = useMemo(() => {
     const projectRows: { projectName: string; projectPath: string; target: Target }[] = [];
@@ -234,14 +230,24 @@ export default function App() {
 
   return (
     <>
+      {/* Splash disabled for now; we will redesign and enable it later.
       {showSplash && (
         <div className={`splash-screen ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
           <div className="splash-content">
-            <div className="splash-title">MonoDock</div>
-            <div className="splash-subtitle">Monorepo Operations Desktop</div>
+            <img className="splash-bg-image" src="/assets/splash-reference.png" alt="MonoDock splash" />
+            <div className="splash-overlay">
+              <div className="splash-loading-title">{locale === "pt-BR" ? "Carregando seu workspace..." : "Loading your workspace..."}</div>
+              <div className="splash-progress-track">
+                <div className="splash-progress-fill" style={{ width: `${splashProgress}%` }} />
+              </div>
+              <div className="splash-loading-subtitle">
+                <span className="splash-spinner" aria-hidden />
+                <span>{locale === "pt-BR" ? "Inicializando serviços..." : "Initializing services..."}</span>
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      )} */}
       <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
       <header className="top-header">
         <div className="header-left">
@@ -289,6 +295,9 @@ export default function App() {
               </span>
             </span>
           </label>
+          <button className="window-close-btn" title="Close" aria-label="Close" onClick={() => void wailsService.closeApp()}>
+            {ICON.close}
+          </button>
         </div>
       </header>
 
@@ -593,7 +602,17 @@ export default function App() {
           )}
           {error && <span className="error">{error}</span>}
         </div>
-        <span className="footer-right">{t("by", locale)}</span>
+        <button
+          className="footer-right footer-easter-egg"
+          onClick={() => {
+            setHackerMode(true);
+            setTheme("dark");
+          }}
+          title="Enable hacker mode"
+          aria-label="Enable hacker mode"
+        >
+          {t("by", locale)}
+        </button>
       </footer>
       </main>
     </>

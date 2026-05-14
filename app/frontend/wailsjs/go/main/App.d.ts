@@ -7,6 +7,8 @@ import {config} from '../models';
 
 export function AnalyzeWorkspace(arg1:string):Promise<analyzer.Report>;
 
+export function CloseApp():Promise<void>;
+
 export function InspectWorkspace(arg1:string):Promise<workspace.Summary>;
 
 export function ListProcesses():Promise<Array<runner.Process>>;
