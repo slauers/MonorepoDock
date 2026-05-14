@@ -188,6 +188,9 @@ func runNPMAudit(ctx context.Context, root string) []Finding {
 	out, err := runCommand(auditCtx, root, bin, args...)
 	logFindings = append(logFindings, buildLogFinding("audit-initial", bin, args, err, out))
 	if payload, ok := parseAuditPayload(out); ok {
+		if err != nil {
+			logFindings = markAuditNonZeroAsInformational(logFindings)
+		}
 		return buildAuditFindings(payload, logFindings)
 	}
 	if err != nil {
@@ -200,6 +203,9 @@ func runNPMAudit(ctx context.Context, root string) []Finding {
 			retryOut, retryErr := runCommand(retryCtx, root, bin, args...)
 			logFindings = append(logFindings, buildLogFinding("audit-retry", bin, args, retryErr, retryOut))
 			if payload, ok := parseAuditPayload(retryOut); ok {
+				if retryErr != nil {
+					logFindings = markAuditNonZeroAsInformational(logFindings)
+				}
 				return buildAuditFindings(payload, logFindings)
 			}
 			if retryErr == nil {
@@ -380,8 +386,19 @@ func buildAuditFindings(payload map[string]any, logFindings []Finding) []Finding
 		})
 	}
 
-	findings := make([]Finding, 0, len(vulnsRaw)+len(logFindings))
+	critical, high, medium, low := vulnerabilityCounts(vulnsRaw)
+	findings := make([]Finding, 0, len(vulnsRaw)+len(logFindings)+1)
 	findings = append(findings, logFindings...)
+	findings = append(findings, Finding{
+		ID:          "audit-summary",
+		Category:    "security",
+		Severity:    highestSeverity(critical, high, medium, low),
+		Title:       "Security audit summary",
+		Details:     fmt.Sprintf("Found %d vulnerabilities (critical: %d, high: %d, medium: %d, low: %d).", len(vulnsRaw), critical, high, medium, low),
+		ProjectPath: "/",
+		Suggestion:  "Prioritize critical/high first, then align versions and upgrade affected dependencies.",
+	})
+
 	for pkg, raw := range vulnsRaw {
 		item, ok := raw.(map[string]any)
 		if !ok {
@@ -392,16 +409,118 @@ func buildAuditFindings(payload map[string]any, logFindings []Finding) []Finding
 		if severity == "" {
 			severity = "warning"
 		}
+		advisoryTitle, advisoryURL := pickAdvisory(item["via"])
+		fixVersion := extractFixVersion(item["fixAvailable"])
+		details := "npm audit reported this package as vulnerable."
+		if advisoryTitle != "" {
+			details = advisoryTitle
+		}
+		suggestion := "Review npm audit details and update or replace the package."
+		if fixVersion != "" {
+			suggestion = "Update to fixed version: " + fixVersion
+		}
 		findings = append(findings, Finding{
 			ID:          "vuln-" + pkg,
 			Category:    "security",
 			Severity:    severity,
 			Title:       title,
-			Details:     "npm audit reported this package as vulnerable.",
+			Details:     details,
 			ProjectPath: "/",
 			PackageName: pkg,
-			Suggestion:  "Review npm audit details and update or replace the package.",
+			Suggestion:  suggestion,
+			Reference:   advisoryURL,
+			FixVersion:  fixVersion,
 		})
 	}
 	return findings
+}
+
+func markAuditNonZeroAsInformational(findings []Finding) []Finding {
+	for i := range findings {
+		if findings[i].Category != "analysis-runtime" || !strings.Contains(findings[i].Title, "audit-") {
+			continue
+		}
+		if findings[i].Severity == "warning" {
+			findings[i].Severity = "info"
+			findings[i].Details = strings.ReplaceAll(findings[i].Details, "status: error", "status: completed-with-findings")
+		}
+	}
+	return findings
+}
+
+func pickAdvisory(via any) (string, string) {
+	items, ok := via.([]any)
+	if !ok {
+		return "", ""
+	}
+	for _, item := range items {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		title, _ := obj["title"].(string)
+		url, _ := obj["url"].(string)
+		if title != "" || url != "" {
+			return title, url
+		}
+	}
+	return "", ""
+}
+
+func extractFixVersion(fix any) string {
+	if fix == nil {
+		return ""
+	}
+	if s, ok := fix.(string); ok {
+		return s
+	}
+	if b, ok := fix.(bool); ok && !b {
+		return ""
+	}
+	if obj, ok := fix.(map[string]any); ok {
+		if name, _ := obj["name"].(string); name != "" {
+			if version, _ := obj["version"].(string); version != "" {
+				return name + "@" + version
+			}
+			return name
+		}
+	}
+	return ""
+}
+
+func vulnerabilityCounts(v map[string]any) (critical, high, medium, low int) {
+	for _, raw := range v {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		sev, _ := item["severity"].(string)
+		switch strings.ToLower(sev) {
+		case "critical":
+			critical++
+		case "high":
+			high++
+		case "moderate", "medium":
+			medium++
+		case "low":
+			low++
+		}
+	}
+	return
+}
+
+func highestSeverity(critical, high, medium, low int) string {
+	if critical > 0 {
+		return "critical"
+	}
+	if high > 0 {
+		return "high"
+	}
+	if medium > 0 {
+		return "moderate"
+	}
+	if low > 0 {
+		return "low"
+	}
+	return "info"
 }

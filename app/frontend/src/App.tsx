@@ -12,6 +12,7 @@ const ICON = {
   restart: "\u21BB",
   logs: "\u2261",
   bullet: "\u2022",
+  copy: "\u29C9",
 };
 
 function workspaceLabel(path: string): string {
@@ -64,6 +65,50 @@ function rowClassFromStatus(status: "idle" | "starting" | "running" | "failed" |
   }
 }
 
+function severityRank(severity: string): number {
+  switch (severity.toLowerCase()) {
+    case "critical":
+      return 5;
+    case "high":
+      return 4;
+    case "moderate":
+    case "medium":
+      return 3;
+    case "warning":
+      return 2;
+    case "low":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function prettifyDetails(details: string): string {
+  const marker = "output:";
+  const markerIndex = details.indexOf(marker);
+  if (markerIndex === -1) return details;
+
+  const afterMarker = details.slice(markerIndex + marker.length).trim();
+  const errorSplit = afterMarker.split(" | error:");
+  const maybeJSON = errorSplit[0].trim();
+
+  const jsonStart = maybeJSON.indexOf("{");
+  if (jsonStart === -1) return details;
+
+  const before = details.slice(0, markerIndex).trimEnd();
+  const jsonText = maybeJSON.slice(jsonStart);
+  try {
+    const parsed = JSON.parse(jsonText);
+    let out = `${before}\noutput:\n${JSON.stringify(parsed, null, 2)}`;
+    if (errorSplit.length > 1) {
+      out += `\nerror:${errorSplit.slice(1).join(" | error:").trim()}`;
+    }
+    return out;
+  } catch {
+    return details;
+  }
+}
+
 export default function App() {
   const locale = getLocale();
   const {
@@ -94,6 +139,8 @@ export default function App() {
   const [view, setView] = useState<"projects" | "processes" | "logs" | "analyze">("projects");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [hackerMode, setHackerMode] = useState(false);
+  const [copiedKey, setCopiedKey] = useState("");
+  const [closedLogTabs, setClosedLogTabs] = useState<string[]>([]);
 
   useEffect(() => {
     void loadRecents();
@@ -108,6 +155,26 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("monodock-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (selectedPath) {
+        void inspect(selectedPath);
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [selectedPath, inspect]);
+
+  useEffect(() => {
+    if (!selectedPath) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void inspect(selectedPath);
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [selectedPath, inspect]);
 
   const rows = useMemo(() => {
     const projectRows: { projectName: string; projectPath: string; target: Target }[] = [];
@@ -129,6 +196,11 @@ export default function App() {
   });
 
   const visibleLogs = logs.filter((entry) => entry.processId === activeLogProcessId);
+  const orderedFindings = useMemo(() => {
+    const items = [...(analysis?.findings ?? [])];
+    items.sort((a, b) => severityRank(b.severity) - severityRank(a.severity));
+    return items;
+  }, [analysis]);
   const tabProcesses = useMemo(() => {
     const seen = new Set<string>();
     const out = [];
@@ -140,6 +212,39 @@ export default function App() {
     }
     return out;
   }, [processes]);
+  const visibleTabProcesses = useMemo(
+    () => tabProcesses.filter((process) => !closedLogTabs.includes(process.id)),
+    [tabProcesses, closedLogTabs],
+  );
+
+  useEffect(() => {
+    if (activeLogProcessId && visibleTabProcesses.some((p) => p.id === activeLogProcessId)) {
+      return;
+    }
+    setActiveLogProcess(visibleTabProcesses[0]?.id ?? "");
+  }, [activeLogProcessId, visibleTabProcesses, setActiveLogProcess]);
+
+  const copyText = async (key: string, value: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((current) => (current === key ? "" : current)), 1500);
+    } catch {
+      setCopiedKey("");
+    }
+  };
+
+  const copyAllVisibleLogs = async () => {
+    const text = visibleLogs.map((entry) => `[${entry.stream}] ${entry.message}`).join("\n");
+    await copyText("all-logs", text);
+  };
+
+  const openLogsForProcess = (processId: string) => {
+    setClosedLogTabs((state) => state.filter((id) => id !== processId));
+    setActiveLogProcess(processId);
+    setView("logs");
+  };
 
   return (
     <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
@@ -294,7 +399,7 @@ export default function App() {
                               {ICON.restart}
                             </button>
                             {running && (
-                              <button className="icon icon-logs" title={t("openLogs", locale)} onClick={() => setActiveLogProcess(running.id)}>
+                              <button className="icon icon-logs" title={t("openLogs", locale)} onClick={() => openLogsForProcess(running.id)}>
                                 {ICON.logs}
                               </button>
                             )}
@@ -356,7 +461,7 @@ export default function App() {
                           <button className="icon icon-restart" title={t("restart", locale)} aria-label={t("restart", locale)} onClick={() => void restartProcess(process.id)}>
                             {ICON.restart}
                           </button>
-                          <button className="icon icon-logs" onClick={() => setActiveLogProcess(process.id)} title={t("openLogs", locale)} aria-label={t("openLogs", locale)}>
+                          <button className="icon icon-logs" onClick={() => openLogsForProcess(process.id)} title={t("openLogs", locale)} aria-label={t("openLogs", locale)}>
                             {ICON.logs}
                           </button>
                         </div>
@@ -372,21 +477,38 @@ export default function App() {
             <div className="logs-card logs-card-large">
               <div className="logs-head">{t("packageAnalyze", locale)}</div>
               <div className="action-group" style={{ marginBottom: 8 }}>
-                <button className="icon icon-restart" title={t("runAnalysis", locale)} onClick={() => void analyzeWorkspace()}>
-                  {ICON.restart} {t("analyze", locale)}
+                <button className="action-text-btn icon-restart" title={t("runAnalysis", locale)} onClick={() => void analyzeWorkspace()}>
+                  <span aria-hidden>{ICON.restart}</span>
+                  <span>{t("analyze", locale)}</span>
                 </button>
                 <span>{t("analyzeHelp", locale)}</span>
               </div>
               <pre>
                 {!analysis && <div>{t("noAnalysisYet", locale)}</div>}
-                {analysis?.findings.length === 0 && <div>{t("noFindings", locale)}</div>}
-                {analysis?.findings.map((finding) => (
-                  <div key={finding.id}>
-                    [{finding.severity}] {finding.title}
-                    {finding.packageName ? ` | package: ${finding.packageName}` : ""}
-                    {finding.projectPath ? ` | project: ${finding.projectPath}` : ""}
-                    {finding.details ? ` | ${finding.details}` : ""}
-                    {finding.suggestion ? ` | suggestion: ${finding.suggestion}` : ""}
+                {orderedFindings.length === 0 && analysis && <div>{t("noFindings", locale)}</div>}
+                {orderedFindings.map((finding) => (
+                  <div key={finding.id} className={`analysis-item severity-${finding.severity.toLowerCase()}`}>
+                    <div className="analysis-title">
+                      <span className={`severity-pill severity-${finding.severity.toLowerCase()}`}>{finding.severity.toUpperCase()}</span> {finding.title}
+                    </div>
+                    {finding.packageName && <div>Package: {finding.packageName}</div>}
+                    {finding.projectPath && <div>Project: {finding.projectPath}</div>}
+                    {finding.details && (
+                      <div>
+                        Details:
+                        <pre className="analysis-details">{prettifyDetails(finding.details)}</pre>
+                      </div>
+                    )}
+                    {finding.fixVersion && <div>Fix: {finding.fixVersion}</div>}
+                    {finding.reference && (
+                      <div>
+                        Reference:{" "}
+                        <a href={finding.reference} target="_blank" rel="noreferrer">
+                          {finding.reference}
+                        </a>
+                      </div>
+                    )}
+                    {finding.suggestion && <div>Suggestion: {finding.suggestion}</div>}
                   </div>
                 ))}
               </pre>
@@ -395,24 +517,67 @@ export default function App() {
 
           {view !== "analyze" && (
             <div className={view === "logs" ? "logs-card logs-card-large" : "logs-card"}>
-              <div className="logs-head">{t("logs", locale)}</div>
+              <div className="logs-head logs-head-row">
+                <span>{t("logs", locale)}</span>
+                <button
+                  className={`copy-btn copy-header-btn ${copiedKey === "all-logs" ? "is-copied" : ""}`}
+                  onClick={() => void copyAllVisibleLogs()}
+                  title={t("copyAllLogs", locale)}
+                  aria-label={t("copyAllLogs", locale)}
+                >
+                  {ICON.copy}
+                </button>
+              </div>
               <div className="log-tabs">
-                {tabProcesses.map((process) => (
+                {visibleTabProcesses.map((process) => (
                   <button
                     key={process.id}
                     className={process.id === activeLogProcessId ? "tab active" : "tab"}
                     onClick={() => setActiveLogProcess(process.id)}
                     title={`${processProjectLabel(process.workDir, summary?.projects)} ${ICON.bullet} ${process.command}`}
                   >
-                    {processProjectLabel(process.workDir, summary?.projects)} {ICON.bullet} {process.command}
+                    <span className="tab-label">
+                      {processProjectLabel(process.workDir, summary?.projects)} {ICON.bullet} {process.command}
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="tab-close"
+                      title="Close log tab"
+                      aria-label="Close log tab"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setClosedLogTabs((state) => (state.includes(process.id) ? state : [...state, process.id]));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setClosedLogTabs((state) => (state.includes(process.id) ? state : [...state, process.id]));
+                        }
+                      }}
+                    >
+                      ×
+                    </span>
                   </button>
                 ))}
               </div>
               <pre>
                 {activeLogProcessId === "" && <div>{t("selectLogTab", locale)}</div>}
                 {visibleLogs.map((entry, index) => (
-                  <div key={`${entry.timestamp}-${index}`}>
-                    [{entry.stream}] {entry.message}
+                  <div className="log-line" key={`${entry.timestamp}-${index}`}>
+                    <span className="log-line-text">
+                      [{entry.stream}] {entry.message}
+                    </span>
+                    <button
+                      className={`copy-btn copy-line-btn ${copiedKey === `${entry.timestamp}-${index}` ? "is-copied" : ""}`}
+                      onClick={() => void copyText(`${entry.timestamp}-${index}`, `[${entry.stream}] ${entry.message}`)}
+                      title={t("copyLine", locale)}
+                      aria-label={t("copyLine", locale)}
+                    >
+                      {ICON.copy}
+                    </button>
                   </div>
                 ))}
               </pre>
