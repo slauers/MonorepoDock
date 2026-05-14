@@ -48,8 +48,8 @@ Sample monorepos for testing are available under `labs/`:
 
 Project page and screenshots:
 
-- https://slauers.github.io/MonorepoDock/
-- https://slauers.github.io/MonorepoDock/screenshots.html
+- https://slauers.github.io/monodock/
+- https://slauers.github.io/monodock/screenshots.html
 
 ## Release Pipeline
 
