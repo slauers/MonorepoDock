@@ -18,25 +18,29 @@
 }
 
 .theme-light.splash-screen {
-  background: #f3f5f8;
+  background: #e4ecfb;
 }
 
-.theme-light .splash-title {
-  color: #1f2d3f;
-}
-
-.theme-light .splash-subtitle {
-  color: #667a90;
+.theme-light .splash-loading-title {
+  color: #eef4ff;
 }
 
 .theme-hacker.splash-screen {
   background: #000000;
 }
 
-.theme-hacker .splash-title,
-.theme-hacker .splash-subtitle {
+.theme-hacker .splash-loading-title,
+.theme-hacker .splash-loading-subtitle {
   color: #86ff86;
   font-family: Consolas, "Courier New", monospace;
+}
+
+.theme-hacker .splash-progress-track {
+  background: rgba(15, 60, 15, 0.6);
+}
+
+.theme-hacker .splash-progress-fill {
+  background: #42d742;
 }
 
 * {
@@ -47,6 +51,7 @@ body {
   margin: 0;
   background: #0b1220;
   overflow: hidden;
+  --wails-resize: all;
 }
 
 .docker-shell {
@@ -66,26 +71,85 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0c1424;
+  background: #020816;
 }
 
 .splash-content {
+  position: relative;
+  width: min(924px, 58.8vw);
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.splash-bg-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.03);
+  transform-origin: center;
+  display: block;
+}
+
+.splash-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 11.5%;
+  transform: translateX(-50%);
+  width: min(680px, 72vw);
   text-align: center;
 }
 
-.splash-title {
-  font-size: 44px;
-  font-weight: 700;
-  color: #f2f7ff;
+.splash-loading-title {
+  font-size: clamp(22px, 2.4vw, 46px);
+  font-weight: 500;
+  color: #eef4ff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
 }
 
-.splash-subtitle {
-  margin-top: 8px;
-  font-size: 14px;
-  color: #8ea5c5;
+.splash-progress-track {
+  width: 100%;
+  margin-top: 14px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(88, 112, 153, 0.4);
+  overflow: hidden;
+}
+
+.splash-progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2d8cff, #4ea6ff);
+  transition: width 120ms linear;
+}
+
+.splash-loading-subtitle {
+  margin-top: 12px;
+  font-size: clamp(13px, 1.05vw, 18px);
+  color: rgba(208, 223, 251, 0.9);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.splash-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(45, 140, 255, 0.35);
+  border-top-color: #2d8cff;
+  animation: splash-spin 0.85s linear infinite;
+}
+
+@keyframes splash-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .top-header {
+  --wails-draggable: drag;
   background: #0d2f6e;
   color: #f2f7ff;
   display: grid;
@@ -104,6 +168,7 @@ body {
 }
 
 .header-search-input {
+  --wails-draggable: no-drag;
   height: 38px;
   width: 100%;
   border-radius: 8px;
@@ -146,7 +211,24 @@ body {
   gap: 10px;
 }
 
+.window-close-btn {
+  --wails-draggable: no-drag;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
 .header-refresh-btn {
+  --wails-draggable: no-drag;
   width: 28px;
   height: 28px;
   border: 1px solid rgba(255, 255, 255, 0.34);
@@ -160,6 +242,7 @@ body {
 }
 
 .theme-switch {
+  --wails-draggable: no-drag;
   display: inline-flex;
   align-items: center;
   cursor: pointer;
@@ -245,6 +328,16 @@ body {
 
 .footer-right {
   justify-self: end;
+}
+
+.footer-easter-egg {
+  --wails-draggable: no-drag;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .footer-status {
@@ -916,6 +1009,8 @@ pre {
   color: #2f5fab;
 }
 
+.theme-light .window-close-btn { color: #ffffff; }
+
 
 .theme-light .toolbar label {
   color: #3a4a5e;
@@ -1187,6 +1282,8 @@ pre {
   color: #86ff86;
   border-radius: 0;
 }
+
+.theme-hacker .window-close-btn { color: #86ff86; }
 
 
 .theme-hacker h1,

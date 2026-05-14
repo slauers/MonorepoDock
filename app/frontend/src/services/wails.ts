@@ -13,6 +13,7 @@ declare global {
           RestartCommand: (processId: string) => Promise<ProcessInfo>;
           ListProcesses: () => Promise<ProcessInfo[]>;
           AnalyzeWorkspace: (root: string) => Promise<AnalysisReport>;
+          CloseApp: () => Promise<void>;
         };
       };
     };
@@ -39,6 +40,7 @@ export const wailsService = {
   restartCommand: (processId: string) => appApi().RestartCommand(processId),
   listProcesses: () => appApi().ListProcesses(),
   analyzeWorkspace: (root: string) => appApi().AnalyzeWorkspace(root),
+  closeApp: () => appApi().CloseApp(),
   onLog: (cb: (payload: unknown) => void) => {
     if (!window.runtime?.EventsOn) {
       return () => undefined;

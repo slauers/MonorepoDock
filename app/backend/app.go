@@ -159,3 +159,10 @@ func (a *App) AnalyzeWorkspace(root string) (analyzer.Report, error) {
 	}
 	return a.analyzer.Analyze(a.ctx, root)
 }
+
+func (a *App) CloseApp() {
+	if a.ctx == nil {
+		return
+	}
+	runtime.Quit(a.ctx)
+}

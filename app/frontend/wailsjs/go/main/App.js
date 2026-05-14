@@ -6,6 +6,10 @@ export function AnalyzeWorkspace(arg1) {
   return window['go']['main']['App']['AnalyzeWorkspace'](arg1);
 }
 
+export function CloseApp() {
+  return window['go']['main']['App']['CloseApp']();
+}
+
 export function InspectWorkspace(arg1) {
   return window['go']['main']['App']['InspectWorkspace'](arg1);
 }
