@@ -238,21 +238,37 @@ func (a *App) RestoreRuntimeSession(root string) ([]runner.Process, error) {
 	}
 
 	started := make([]runner.Process, 0, len(last.Items))
-	seenProfiles := map[string]bool{}
 	profilesList, _ := a.profiles.ListProfiles()
-	existsProfile := map[string]bool{}
+	byProfileID := map[string]profiles.Profile{}
 	for _, profile := range profilesList {
-		existsProfile[profile.ID] = true
+		byProfileID[profile.ID] = profile
 	}
+	itemsByProfile := map[string][]session.RuntimeSessionItem{}
+	for _, item := range last.Items {
+		if item.ProfileID == "" {
+			continue
+		}
+		itemsByProfile[item.ProfileID] = append(itemsByProfile[item.ProfileID], item)
+	}
+	handledProfiles := map[string]bool{}
 
 	for _, item := range last.Items {
-		if item.ProfileID != "" && !seenProfiles[item.ProfileID] && existsProfile[item.ProfileID] {
-			seenProfiles[item.ProfileID] = true
-			profileProcs, runErr := a.RunProfile(item.ProfileID)
-			if runErr == nil {
-				started = append(started, profileProcs...)
+		if item.ProfileID != "" && !handledProfiles[item.ProfileID] {
+			handledProfiles[item.ProfileID] = true
+			profile, ok := byProfileID[item.ProfileID]
+			if ok && sessionItemsMatchProfile(itemsByProfile[item.ProfileID], profile) {
+				profileProcs, runErr := a.RunProfile(item.ProfileID)
+				if runErr == nil {
+					started = append(started, profileProcs...)
+					continue
+				}
 			}
-			continue
+		}
+		if item.ProfileID != "" && handledProfiles[item.ProfileID] {
+			// If this profile was not restored as a full profile, fall back to item-by-item restore.
+			if profile, ok := byProfileID[item.ProfileID]; ok && sessionItemsMatchProfile(itemsByProfile[item.ProfileID], profile) {
+				continue
+			}
 		}
 		proc, runErr := a.RunCommand(item.WorkDir, item.Command)
 		if runErr != nil {
@@ -262,6 +278,25 @@ func (a *App) RestoreRuntimeSession(root string) ([]runner.Process, error) {
 	}
 	a.saveWorkspaceRuntimeSession(root)
 	return started, nil
+}
+
+func sessionItemsMatchProfile(items []session.RuntimeSessionItem, profile profiles.Profile) bool {
+	if len(items) == 0 || len(items) != len(profile.Items) {
+		return false
+	}
+	expected := map[string]bool{}
+	for _, item := range profile.Items {
+		key := strings.TrimSpace(item.WorkDir) + "::" + strings.TrimSpace(item.Command)
+		expected[key] = true
+	}
+	for _, item := range items {
+		key := strings.TrimSpace(item.WorkDir) + "::" + strings.TrimSpace(item.Command)
+		if !expected[key] {
+			return false
+		}
+		delete(expected, key)
+	}
+	return len(expected) == 0
 }
 
 func (a *App) GetProfileRuntimeState(profileID string) profiles.ProfileRuntimeState {
