@@ -77,7 +77,7 @@ func (m *Manager) Start(
 		onStateChange(meta)
 	}
 
-	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-Command", command)
+	cmd := cmdutil.CommandContext(ctx, command)
 	cmdutil.ConfigureForBackground(cmd)
 	cmd.Dir = workDir
 
