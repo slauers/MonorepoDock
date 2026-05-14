@@ -1,0 +1,98 @@
+export type Locale = "en" | "pt-BR";
+
+const en = {
+  projects: "Projects",
+  processes: "Processes",
+  logs: "Logs",
+  analyze: "Analyze",
+  openWorkspace: "Open Workspace",
+  recents: "Recents",
+  targets: "Targets",
+  noWorkspaceSelected: "No workspace selected",
+  packageManager: "Package Manager",
+  monorepoTool: "Monorepo Tool",
+  branch: "Branch",
+  onlyRunning: "Only running",
+  inspectingWorkspace: "Inspecting workspace...",
+  status: "Status",
+  project: "Project",
+  target: "Target",
+  command: "Command",
+  actions: "Actions",
+  action: "Action",
+  play: "Play",
+  stop: "Stop",
+  restart: "Restart",
+  openLogs: "Open logs",
+  runAgain: "Run again",
+  runAnalysis: "Run analysis",
+  packageAnalyze: "Package Analyze",
+  analyzeHelp: "Analyze vulnerabilities and dependency organization opportunities",
+  noAnalysisYet: "No analysis yet. Click refresh to run.",
+  noFindings: "No findings.",
+  selectLogTab: "Select a log tab.",
+  searchPlaceholder: "Search project, target, command",
+  toggleDarkMode: "Toggle dark mode",
+  hackerMode: "HACKER MODE",
+  by: "by slauers",
+  idle: "Idle",
+  starting: "Starting",
+  running: "Running",
+  failed: "Failed",
+  stopped: "Stopped",
+  healthy: "Healthy",
+} as const;
+
+const pt = {
+  projects: "Projetos",
+  processes: "Processos",
+  logs: "Logs",
+  analyze: "Analisar",
+  openWorkspace: "Abrir Workspace",
+  recents: "Recentes",
+  targets: "Alvos",
+  noWorkspaceSelected: "Nenhum workspace selecionado",
+  packageManager: "Gerenciador de Pacotes",
+  monorepoTool: "Ferramenta de Monorepo",
+  branch: "Branch",
+  onlyRunning: "Apenas em execução",
+  inspectingWorkspace: "Inspecionando workspace...",
+  status: "Status",
+  project: "Projeto",
+  target: "Alvo",
+  command: "Comando",
+  actions: "Ações",
+  action: "Ação",
+  play: "Iniciar",
+  stop: "Parar",
+  restart: "Reiniciar",
+  openLogs: "Abrir logs",
+  runAgain: "Rodar novamente",
+  runAnalysis: "Executar análise",
+  packageAnalyze: "Análise de Pacotes",
+  analyzeHelp: "Analisa vulnerabilidades e oportunidades de organização de dependências",
+  noAnalysisYet: "Sem análise ainda. Clique em atualizar para executar.",
+  noFindings: "Sem achados.",
+  selectLogTab: "Selecione uma aba de logs.",
+  searchPlaceholder: "Buscar projeto, alvo, comando",
+  toggleDarkMode: "Alternar modo escuro",
+  hackerMode: "HACKER MODE",
+  by: "by slauers",
+  idle: "Parado",
+  starting: "Iniciando",
+  running: "Executando",
+  failed: "Falhou",
+  stopped: "Interrompido",
+  healthy: "Saudável",
+} as const;
+
+export function getLocale(): Locale {
+  const lang = (navigator.language || "").toLowerCase();
+  if (lang.startsWith("pt")) return "pt-BR";
+  return "en";
+}
+
+export function t(key: keyof typeof en, locale: Locale): string {
+  const dict = locale === "pt-BR" ? pt : en;
+  return dict[key] ?? en[key];
+}

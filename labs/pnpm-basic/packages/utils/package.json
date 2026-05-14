@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm-basic/utils",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('utils build ok')\"",
+    "test": "node -e \"console.log('utils test ok')\"",
+    "dev": "node -e \"console.log('utils dev started'); setInterval(() => console.log('utils heartbeat ' + new Date().toISOString()), 2500)\""
+  }
+}

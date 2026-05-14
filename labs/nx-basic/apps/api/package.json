@@ -1,0 +1,10 @@
+{
+  "name": "@nx-basic/api",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('nx api build ok')\"",
+    "test": "node -e \"console.log('nx api test ok')\"",
+    "dev": "node -e \"console.log('nx api dev started'); setInterval(() => console.log('nx api heartbeat ' + new Date().toISOString()), 2000)\"",
+    "fail": "node -e \"console.error('nx api forced failure'); process.exit(1)\""
+  }
+}

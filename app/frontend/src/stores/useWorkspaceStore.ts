@@ -1,0 +1,213 @@
+import { create } from "zustand";
+import { wailsService } from "../services/wails";
+import type {
+  AnalysisReport,
+  LogEntry,
+  ProcessInfo,
+  RecentWorkspace,
+  Target,
+  WorkspaceSummary,
+} from "../types/workspace";
+
+type WorkspaceState = {
+  summary: WorkspaceSummary | null;
+  recents: RecentWorkspace[];
+  processes: ProcessInfo[];
+  logs: LogEntry[];
+  analysis: AnalysisReport | null;
+  launchingTargetKeys: string[];
+  activeLogProcessId: string;
+  selectedPath: string;
+  loading: boolean;
+  error: string;
+  loadRecents: () => Promise<void>;
+  chooseWorkspace: () => Promise<void>;
+  inspect: (root: string) => Promise<void>;
+  runTarget: (target: Target) => Promise<void>;
+  stopProcess: (processId: string) => Promise<void>;
+  restartProcess: (processId: string) => Promise<void>;
+  setActiveLogProcess: (processId: string) => void;
+  findRunningProcessForTarget: (target: Target) => ProcessInfo | undefined;
+  isTargetBusy: (target: Target) => boolean;
+  latestProcessForTarget: (target: Target) => ProcessInfo | undefined;
+  targetStatus: (target: Target) => "idle" | "starting" | "running" | "failed" | "success" | "stopped";
+  bindEvents: () => void;
+  analyzeWorkspace: () => Promise<void>;
+};
+
+function upsertProcess(items: ProcessInfo[], next: ProcessInfo): ProcessInfo[] {
+  const idx = items.findIndex((item) => item.id === next.id);
+  if (idx === -1) {
+    return [next, ...items];
+  }
+  const clone = [...items];
+  clone[idx] = next;
+  return clone;
+}
+
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+  summary: null,
+  recents: [],
+  processes: [],
+  logs: [],
+  analysis: null,
+  launchingTargetKeys: [],
+  activeLogProcessId: "",
+  selectedPath: "",
+  loading: false,
+  error: "",
+  loadRecents: async () => {
+    const recents = await wailsService.listRecentWorkspaces();
+    set({ recents });
+    if (!get().selectedPath && recents.length > 0) {
+      await get().inspect(recents[0].path);
+    }
+  },
+  chooseWorkspace: async () => {
+    const path = await wailsService.openWorkspaceDialog();
+    if (!path) {
+      return;
+    }
+    set({ selectedPath: path });
+    await get().inspect(path);
+  },
+  inspect: async (root: string) => {
+    try {
+      set({ loading: true, error: "" });
+      const [summary, processes] = await Promise.all([
+        wailsService.inspectWorkspace(root),
+        wailsService.listProcesses(),
+      ]);
+      const workspaceProcesses = processes.filter((proc) => proc.workDir.startsWith(root));
+      set((state) => ({
+        summary,
+        processes: workspaceProcesses,
+        selectedPath: root,
+        activeLogProcessId: state.activeLogProcessId || (workspaceProcesses[0]?.id ?? ""),
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to inspect workspace";
+      set({ error: message });
+    } finally {
+      set({ loading: false });
+    }
+  },
+  runTarget: async (target: Target) => {
+    const key = `${target.workDir}::${target.command}`;
+    const busy = get().isTargetBusy(target);
+    if (busy) {
+      return;
+    }
+
+    set((state) => ({ launchingTargetKeys: [...state.launchingTargetKeys, key] }));
+    try {
+      const process = await wailsService.runCommand(target.workDir, target.command);
+      set((state) => ({
+        processes: upsertProcess(state.processes, process),
+        activeLogProcessId: process.id,
+      }));
+    } finally {
+      set((state) => ({
+        launchingTargetKeys: state.launchingTargetKeys.filter((item) => item !== key),
+      }));
+    }
+  },
+  stopProcess: async (processId: string) => {
+    await wailsService.stopCommand(processId);
+  },
+  restartProcess: async (processId: string) => {
+    const process = await wailsService.restartCommand(processId);
+    set((state) => ({
+      processes: upsertProcess(state.processes, process),
+      activeLogProcessId: process.id,
+    }));
+  },
+  setActiveLogProcess: (processId: string) => set({ activeLogProcessId: processId }),
+  findRunningProcessForTarget: (target: Target) => {
+    return get().processes.find(
+      (proc) =>
+        proc.workDir === target.workDir && proc.command === target.command && proc.status === "running",
+    );
+  },
+  isTargetBusy: (target: Target) => {
+    const key = `${target.workDir}::${target.command}`;
+    const launching = get().launchingTargetKeys.includes(key);
+    if (launching) {
+      return true;
+    }
+    return get().processes.some(
+      (proc) =>
+        proc.workDir === target.workDir &&
+        proc.command === target.command &&
+        (proc.status === "running" || proc.status === "starting"),
+    );
+  },
+  latestProcessForTarget: (target: Target) => {
+    for (const proc of get().processes) {
+      if (proc.workDir === target.workDir && proc.command === target.command) {
+        return proc;
+      }
+    }
+    return undefined;
+  },
+  targetStatus: (target: Target) => {
+    const latest = get().latestProcessForTarget(target);
+    const key = `${target.workDir}::${target.command}`;
+    const launching = get().launchingTargetKeys.includes(key);
+    if (!latest) {
+      return launching ? "starting" : "idle";
+    }
+    if (latest.status === "starting" || (launching && latest.status !== "running")) {
+      return "starting";
+    }
+    if (latest.status === "running") {
+      return "running";
+    }
+    if (latest.status === "failed") {
+      return "failed";
+    }
+    if (latest.status === "stopped") {
+      return "stopped";
+    }
+    if (latest.status === "exited") {
+      return "success";
+    }
+    return "idle";
+  },
+  bindEvents: () => {
+    wailsService.onLog((payload) => {
+      const entry = payload as LogEntry;
+      const activeWorkspace = get().selectedPath;
+      if (!activeWorkspace) {
+        return;
+      }
+      const process = get().processes.find((proc) => proc.id === entry.processId);
+      if (!process || !process.workDir.startsWith(activeWorkspace)) {
+        return;
+      }
+      set((state) => ({
+        logs: [...state.logs.slice(-799), entry],
+        activeLogProcessId: state.activeLogProcessId || entry.processId,
+      }));
+    });
+
+    wailsService.onProcessUpdated((payload) => {
+      const proc = payload as ProcessInfo;
+      const activeWorkspace = get().selectedPath;
+      if (!activeWorkspace || !proc.workDir.startsWith(activeWorkspace)) {
+        return;
+      }
+      set((state) => ({
+        processes: upsertProcess(state.processes, proc),
+      }));
+    });
+  },
+  analyzeWorkspace: async () => {
+    const root = get().selectedPath;
+    if (!root) {
+      return;
+    }
+    const report = await wailsService.analyzeWorkspace(root);
+    set({ analysis: report });
+  },
+}));

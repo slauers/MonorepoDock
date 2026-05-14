@@ -1,0 +1,14 @@
+{
+  "name": "nx-basic",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "nx": "nx",
+    "build": "nx run-many -t build",
+    "test": "nx run-many -t test",
+    "dev": "nx run api:dev"
+  },
+  "devDependencies": {
+    "nx": "^20.0.0"
+  }
+}

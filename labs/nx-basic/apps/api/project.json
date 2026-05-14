@@ -1,0 +1,16 @@
+{
+  "name": "api",
+  "projectType": "application",
+  "sourceRoot": "apps/api/src",
+  "targets": {
+    "build": {
+      "command": "node -e \"console.log('nx api build ok')\""
+    },
+    "test": {
+      "command": "node -e \"console.log('nx api test ok')\""
+    },
+    "dev": {
+      "command": "node -e \"console.log('nx api dev started'); setInterval(() => console.log('nx api heartbeat ' + new Date().toISOString()), 2000)\""
+    }
+  }
+}

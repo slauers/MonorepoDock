@@ -1,0 +1,13 @@
+services:
+  api:
+    image: nginx:1.27-alpine
+    container_name: monodock-lab-api
+    ports:
+      - "8088:80"
+
+  redis:
+    image: redis:7-alpine
+    container_name: monodock-lab-redis
+    ports:
+      - "6388:6379"
+

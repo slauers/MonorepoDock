@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm-basic/web",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('web build ok')\"",
+    "test": "node -e \"console.log('web test ok')\"",
+    "dev": "node -e \"console.log('web dev started'); setInterval(() => console.log('web heartbeat ' + new Date().toISOString()), 2000)\""
+  }
+}
