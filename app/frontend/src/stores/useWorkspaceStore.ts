@@ -45,6 +45,11 @@ function upsertProcess(items: ProcessInfo[], next: ProcessInfo): ProcessInfo[] {
   return clone;
 }
 
+function isLabWorkspacePath(path: string): boolean {
+  const normalized = path.replace(/\\/g, "/").toLowerCase();
+  return normalized.includes("/labs/");
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   summary: null,
   recents: [],
@@ -60,7 +65,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const recents = await wailsService.listRecentWorkspaces();
     set({ recents });
     if (!get().selectedPath && recents.length > 0) {
-      await get().inspect(recents[0].path);
+      const preferred = recents.find((item) => !isLabWorkspacePath(item.path)) ?? recents[0];
+      await get().inspect(preferred.path);
     }
   },
   chooseWorkspace: async () => {

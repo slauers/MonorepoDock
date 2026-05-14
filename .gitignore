@@ -18,3 +18,13 @@ app/frontend/.cache/
 labs/**/node_modules/
 labs/**/.nx/
 AGENTS.md
+
+# Keep Wails app icon/resource files versioned for CI/release builds
+!app/backend/build/
+app/backend/build/*
+!app/backend/build/appicon.png
+!app/backend/build/windows/
+app/backend/build/windows/*
+!app/backend/build/windows/icon.ico
+!app/backend/build/windows/info.json
+!app/backend/build/windows/wails.exe.manifest

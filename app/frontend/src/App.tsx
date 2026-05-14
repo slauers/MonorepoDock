@@ -141,6 +141,7 @@ export default function App() {
   const [hackerMode, setHackerMode] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [closedLogTabs, setClosedLogTabs] = useState<string[]>([]);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     void loadRecents();
@@ -157,24 +158,9 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    const onFocus = () => {
-      if (selectedPath) {
-        void inspect(selectedPath);
-      }
-    };
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [selectedPath, inspect]);
-
-  useEffect(() => {
-    if (!selectedPath) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void inspect(selectedPath);
-      }
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [selectedPath, inspect]);
+    const timer = window.setTimeout(() => setShowSplash(false), 1300);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const rows = useMemo(() => {
     const projectRows: { projectName: string; projectPath: string; target: Target }[] = [];
@@ -247,7 +233,16 @@ export default function App() {
   };
 
   return (
-    <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
+    <>
+      {showSplash && (
+        <div className={`splash-screen ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
+          <div className="splash-content">
+            <div className="splash-title">MonoDock</div>
+            <div className="splash-subtitle">Monorepo Operations Desktop</div>
+          </div>
+        </div>
+      )}
+      <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
       <header className="top-header">
         <div className="header-left">
           <div>MonoDock Desktop</div>
@@ -270,6 +265,14 @@ export default function App() {
           />
         </div>
         <div className="header-right">
+          <button
+            className="header-refresh-btn"
+            onClick={() => selectedPath && void inspect(selectedPath)}
+            title="Refresh workspace"
+            aria-label="Refresh workspace"
+          >
+            {ICON.restart}
+          </button>
           <label className="theme-switch" title="Toggle theme">
             <input
               type="checkbox"
@@ -350,13 +353,6 @@ export default function App() {
                 <input type="checkbox" checked={onlyRunning} onChange={(e) => setOnlyRunning(e.target.checked)} />
                 <span>{t("onlyRunning", locale)}</span>
               </label>
-            </div>
-          )}
-
-          {(loading || error) && (
-            <div className="status-strip">
-              {loading && <span>{t("inspectingWorkspace", locale)}</span>}
-              {error && <span className="error">{error}</span>}
             </div>
           )}
 
@@ -587,8 +583,19 @@ export default function App() {
       </div>
 
       <footer className="app-footer">
-        <span>{t("by", locale)}</span>
+        <span className="footer-left-placeholder" />
+        <div className={`footer-status footer-center ${loading || error ? "visible" : ""}`}>
+          {loading && (
+            <>
+              <span className="footer-spinner" aria-hidden />
+              <span>{t("inspectingWorkspace", locale)}</span>
+            </>
+          )}
+          {error && <span className="error">{error}</span>}
+        </div>
+        <span className="footer-right">{t("by", locale)}</span>
       </footer>
-    </main>
+      </main>
+    </>
   );
 }

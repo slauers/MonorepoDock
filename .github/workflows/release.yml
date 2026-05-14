@@ -18,6 +18,7 @@ jobs:
           - os: windows-latest
             artifact: monodock-windows-amd64
             archive_file: app/backend/build/monodock-windows-amd64.zip
+            installer_file: app/backend/build/monodock-installer-windows-amd64.exe
           - os: macos-latest
             artifact: monodock-macos-amd64
             archive_file: app/backend/build/monodock-macos-amd64.tar.gz
@@ -75,6 +76,79 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path app/backend/build/bin/* -DestinationPath app/backend/build/monodock-windows-amd64.zip
 
+      - name: Build Windows installer (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          Add-Type -AssemblyName System.Drawing
+          $wizardMain = "app\backend\build\wizard-main.bmp"
+          $wizardSmall = "app\backend\build\wizard-small.bmp"
+          $bmpMain = New-Object System.Drawing.Bitmap 164,314
+          $gMain = [System.Drawing.Graphics]::FromImage($bmpMain)
+          $gMain.Clear([System.Drawing.Color]::FromArgb(13,47,110))
+          $fontTitle = New-Object System.Drawing.Font("Segoe UI",18,[System.Drawing.FontStyle]::Bold)
+          $fontSub = New-Object System.Drawing.Font("Segoe UI",10,[System.Drawing.FontStyle]::Regular)
+          $brush = [System.Drawing.Brushes]::White
+          $gMain.DrawString("MonoDock", $fontTitle, $brush, 18, 24)
+          $gMain.DrawString("Monorepo Operations Desktop", $fontSub, $brush, 18, 58)
+          $gMain.Dispose()
+          $bmpMain.Save($wizardMain, [System.Drawing.Imaging.ImageFormat]::Bmp)
+          $bmpMain.Dispose()
+          $bmpSmall = New-Object System.Drawing.Bitmap 55,55
+          $gSmall = [System.Drawing.Graphics]::FromImage($bmpSmall)
+          $gSmall.Clear([System.Drawing.Color]::FromArgb(13,47,110))
+          $gSmall.DrawString("M", $fontTitle, $brush, 10, 8)
+          $gSmall.Dispose()
+          $bmpSmall.Save($wizardSmall, [System.Drawing.Imaging.ImageFormat]::Bmp)
+          $bmpSmall.Dispose()
+          $fontTitle.Dispose()
+          $fontSub.Dispose()
+          @"
+          [Setup]
+          AppId={{A26E07CB-5AFC-4FC4-B80A-70C92C437A5D}
+          AppName=MonoDock
+          AppVerName=MonoDock ${{ github.ref_name }}
+          AppVersion=${{ github.ref_name }}
+          AppPublisher=slauers
+          AppPublisherURL=https://github.com/slauers/monodock
+          AppSupportURL=https://github.com/slauers/monodock/issues
+          AppUpdatesURL=https://github.com/slauers/monodock/releases
+          DefaultDirName={autopf}\MonoDock
+          DefaultGroupName=MonoDock
+          UninstallDisplayName=MonoDock
+          UninstallDisplayIcon={app}\monodock.exe
+          DisableProgramGroupPage=yes
+          OutputDir=app\backend\build
+          OutputBaseFilename=monodock-installer-windows-amd64
+          Compression=lzma
+          SolidCompression=yes
+          WizardStyle=modern
+          SetupIconFile=app\backend\build\windows\icon.ico
+          WizardImageFile=app\backend\build\wizard-main.bmp
+          WizardSmallImageFile=app\backend\build\wizard-small.bmp
+          VersionInfoCompany=slauers
+          VersionInfoDescription=MonoDock Installer
+          VersionInfoProductName=MonoDock
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Files]
+          Source: "app\backend\build\bin\monodock.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+          [Icons]
+          Name: "{autoprograms}\MonoDock"; Filename: "{app}\monodock.exe"
+          Name: "{autodesktop}\MonoDock"; Filename: "{app}\monodock.exe"; Tasks: desktopicon
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+
+          [Run]
+          Filename: "{app}\monodock.exe"; Description: "Launch MonoDock"; Flags: nowait postinstall skipifsilent
+          "@ | Set-Content -LiteralPath app\backend\build\monodock.iss -Encoding ASCII
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" app\backend\build\monodock.iss
+
       - name: Package release artifact (macOS/Linux)
         if: runner.os != 'Windows'
         run: tar -C app/backend/build -czf ${{ matrix.archive_file }} bin
@@ -84,6 +158,13 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.archive_file }}
+
+      - name: Upload installer artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monodock-windows-installer-amd64
+          path: ${{ matrix.installer_file }}
 
   release:
     needs: build
@@ -100,4 +181,5 @@ jobs:
           files: |
             release-artifacts/**/*.zip
             release-artifacts/**/*.tar.gz
+            release-artifacts/**/*.exe
           generate_release_notes: true

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"monodock/backend/internal/cmdutil"
 )
 
 type Service struct{}
@@ -312,6 +314,7 @@ func severityWeight(severity string) int {
 
 func runCommand(ctx context.Context, dir string, bin string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, bin, args...)
+	cmdutil.ConfigureForBackground(cmd)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err

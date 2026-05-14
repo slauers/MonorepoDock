@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"monodock/backend/internal/cmdutil"
 )
 
 func CurrentBranch(ctx context.Context, repoPath string) (string, error) {
@@ -37,6 +39,7 @@ func CurrentBranch(ctx context.Context, repoPath string) (string, error) {
 
 func runGit(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmdutil.ConfigureForBackground(cmd)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out

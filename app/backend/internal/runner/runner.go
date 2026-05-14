@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"monodock/backend/internal/cmdutil"
 )
 
 type Process struct {
@@ -76,6 +78,7 @@ func (m *Manager) Start(
 	}
 
 	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-Command", command)
+	cmdutil.ConfigureForBackground(cmd)
 	cmd.Dir = workDir
 
 	stdout, err := cmd.StdoutPipe()
