@@ -119,14 +119,14 @@ jobs:
           UninstallDisplayName=MonoDock
           UninstallDisplayIcon={app}\monodock.exe
           DisableProgramGroupPage=yes
-          OutputDir=app\backend\build
+          OutputDir=.
           OutputBaseFilename=monodock-installer-windows-amd64
           Compression=lzma
           SolidCompression=yes
           WizardStyle=modern
-          SetupIconFile=app\backend\build\windows\icon.ico
-          WizardImageFile=app\backend\build\wizard-main.bmp
-          WizardSmallImageFile=app\backend\build\wizard-small.bmp
+          SetupIconFile=windows\icon.ico
+          WizardImageFile=wizard-main.bmp
+          WizardSmallImageFile=wizard-small.bmp
           VersionInfoCompany=slauers
           VersionInfoDescription=MonoDock Installer
           VersionInfoProductName=MonoDock
@@ -135,7 +135,7 @@ jobs:
           Name: "english"; MessagesFile: "compiler:Default.isl"
 
           [Files]
-          Source: "app\backend\build\bin\monodock.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "bin\monodock.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
           Name: "{autoprograms}\MonoDock"; Filename: "{app}\monodock.exe"
@@ -147,7 +147,9 @@ jobs:
           [Run]
           Filename: "{app}\monodock.exe"; Description: "Launch MonoDock"; Flags: nowait postinstall skipifsilent
           "@ | Set-Content -LiteralPath app\backend\build\monodock.iss -Encoding ASCII
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" app\backend\build\monodock.iss
+          Push-Location app\backend\build
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" monodock.iss
+          Pop-Location
 
       - name: Package release artifact (macOS/Linux)
         if: runner.os != 'Windows'
