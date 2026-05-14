@@ -17,16 +17,13 @@ jobs:
         include:
           - os: windows-latest
             artifact: monodock-windows-amd64
-            archive_cmd: powershell -NoProfile -Command "Compress-Archive -Path app/backend/build/bin/* -DestinationPath app/backend/build/${{ matrix.artifact }}.zip"
-            archive_file: app/backend/build/${{ matrix.artifact }}.zip
+            archive_file: app/backend/build/monodock-windows-amd64.zip
           - os: macos-latest
             artifact: monodock-macos-amd64
-            archive_cmd: tar -C app/backend/build -czf app/backend/build/${{ matrix.artifact }}.tar.gz bin
-            archive_file: app/backend/build/${{ matrix.artifact }}.tar.gz
+            archive_file: app/backend/build/monodock-macos-amd64.tar.gz
           - os: ubuntu-24.04
             artifact: monodock-linux-amd64
-            archive_cmd: tar -C app/backend/build -czf app/backend/build/${{ matrix.artifact }}.tar.gz bin
-            archive_file: app/backend/build/${{ matrix.artifact }}.tar.gz
+            archive_file: app/backend/build/monodock-linux-amd64.tar.gz
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -54,13 +51,33 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
-      - name: Build application
+      - name: Build application (Linux)
+        if: runner.os == 'Linux'
         working-directory: app/backend
         run: |
-          wails build -clean -tags webkit2_41
+          "$HOME/go/bin/wails" build -clean -tags webkit2_41
 
-      - name: Package release artifact
-        run: ${{ matrix.archive_cmd }}
+      - name: Build application (macOS)
+        if: runner.os == 'macOS'
+        working-directory: app/backend
+        run: |
+          "$HOME/go/bin/wails" build -clean
+
+      - name: Build application (Windows)
+        if: runner.os == 'Windows'
+        working-directory: app/backend
+        shell: pwsh
+        run: |
+          & "$env:USERPROFILE\\go\\bin\\wails.exe" build -clean
+
+      - name: Package release artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path app/backend/build/bin/* -DestinationPath app/backend/build/monodock-windows-amd64.zip
+
+      - name: Package release artifact (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: tar -C app/backend/build -czf ${{ matrix.archive_file }} bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
