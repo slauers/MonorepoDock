@@ -12,6 +12,7 @@ const ICON = {
   restart: "\u21BB",
   logs: "\u2261",
   bullet: "\u2022",
+  copy: "\u29C9",
 };
 
 function workspaceLabel(path: string): string {
@@ -94,6 +95,7 @@ export default function App() {
   const [view, setView] = useState<"projects" | "processes" | "logs" | "analyze">("projects");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [hackerMode, setHackerMode] = useState(false);
+  const [copiedKey, setCopiedKey] = useState("");
 
   useEffect(() => {
     void loadRecents();
@@ -140,6 +142,22 @@ export default function App() {
     }
     return out;
   }, [processes]);
+
+  const copyText = async (key: string, value: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((current) => (current === key ? "" : current)), 1500);
+    } catch {
+      setCopiedKey("");
+    }
+  };
+
+  const copyAllVisibleLogs = async () => {
+    const text = visibleLogs.map((entry) => `[${entry.stream}] ${entry.message}`).join("\n");
+    await copyText("all-logs", text);
+  };
 
   return (
     <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
@@ -372,8 +390,9 @@ export default function App() {
             <div className="logs-card logs-card-large">
               <div className="logs-head">{t("packageAnalyze", locale)}</div>
               <div className="action-group" style={{ marginBottom: 8 }}>
-                <button className="icon icon-restart" title={t("runAnalysis", locale)} onClick={() => void analyzeWorkspace()}>
-                  {ICON.restart} {t("analyze", locale)}
+                <button className="action-text-btn icon-restart" title={t("runAnalysis", locale)} onClick={() => void analyzeWorkspace()}>
+                  <span aria-hidden>{ICON.restart}</span>
+                  <span>{t("analyze", locale)}</span>
                 </button>
                 <span>{t("analyzeHelp", locale)}</span>
               </div>
@@ -395,7 +414,17 @@ export default function App() {
 
           {view !== "analyze" && (
             <div className={view === "logs" ? "logs-card logs-card-large" : "logs-card"}>
-              <div className="logs-head">{t("logs", locale)}</div>
+              <div className="logs-head logs-head-row">
+                <span>{t("logs", locale)}</span>
+                <button
+                  className={`copy-btn copy-header-btn ${copiedKey === "all-logs" ? "is-copied" : ""}`}
+                  onClick={() => void copyAllVisibleLogs()}
+                  title={t("copyAllLogs", locale)}
+                  aria-label={t("copyAllLogs", locale)}
+                >
+                  {ICON.copy}
+                </button>
+              </div>
               <div className="log-tabs">
                 {tabProcesses.map((process) => (
                   <button
@@ -411,8 +440,18 @@ export default function App() {
               <pre>
                 {activeLogProcessId === "" && <div>{t("selectLogTab", locale)}</div>}
                 {visibleLogs.map((entry, index) => (
-                  <div key={`${entry.timestamp}-${index}`}>
-                    [{entry.stream}] {entry.message}
+                  <div className="log-line" key={`${entry.timestamp}-${index}`}>
+                    <span className="log-line-text">
+                      [{entry.stream}] {entry.message}
+                    </span>
+                    <button
+                      className={`copy-btn copy-line-btn ${copiedKey === `${entry.timestamp}-${index}` ? "is-copied" : ""}`}
+                      onClick={() => void copyText(`${entry.timestamp}-${index}`, `[${entry.stream}] ${entry.message}`)}
+                      title={t("copyLine", locale)}
+                      aria-label={t("copyLine", locale)}
+                    >
+                      {ICON.copy}
+                    </button>
                   </div>
                 ))}
               </pre>

@@ -415,6 +415,19 @@ tbody tr:hover {
   gap: 6px;
 }
 
+.action-text-btn {
+  height: 30px;
+  border: 1px solid #735c2f;
+  border-radius: 7px;
+  background: #152846;
+  color: #f0c16a;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
 .icon {
   width: 30px;
   height: 30px;
@@ -472,6 +485,44 @@ tbody tr:hover {
   color: #c6d7ef;
 }
 
+.logs-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.copy-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #2f4f77;
+  border-radius: 6px;
+  background: #12233c;
+  color: #bad0ee;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.copy-line-btn {
+  flex: 0 0 auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.copy-header-btn {
+  opacity: 1;
+}
+
+.copy-btn.is-copied {
+  border-color: #4f8fda;
+  color: #d8eaff;
+}
+
 .log-tabs {
   display: flex;
   gap: 6px;
@@ -506,6 +557,34 @@ pre {
   color: #cad7ec;
   font-family: Consolas, monospace;
   font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.log-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+
+.log-line:hover,
+.log-line:focus-within {
+  background: #122744;
+}
+
+.log-line:hover .copy-line-btn,
+.log-line:focus-within .copy-line-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.log-line-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 1200px) {
@@ -681,6 +760,12 @@ pre {
   border-color: #e6d3b0;
 }
 
+.theme-light .action-text-btn {
+  border-color: #e6d3b0;
+  background: #ffffff;
+  color: #b07a1f;
+}
+
 .theme-light .icon-logs {
   color: #2f5fab;
   border-color: #c4d5f1;
@@ -706,6 +791,17 @@ pre {
   border-color: #d9e3f0;
   background: #f8fbff;
   color: #2b3b4f;
+}
+
+.theme-light .copy-btn {
+  border-color: #c4d5f1;
+  background: #ffffff;
+  color: #2f5fab;
+}
+
+.theme-light .log-line:hover,
+.theme-light .log-line:focus-within {
+  background: #eaf2ff;
 }
 
 .theme-hacker {
@@ -904,6 +1000,19 @@ pre {
 
 .theme-hacker .icon-logs {
   color: #7cc7ff;
+}
+
+.theme-hacker .action-text-btn,
+.theme-hacker .copy-btn {
+  border-color: #2f7f2f;
+  background: #000000;
+  color: #86ff86;
+  border-radius: 0;
+}
+
+.theme-hacker .log-line:hover,
+.theme-hacker .log-line:focus-within {
+  background: #001300;
 }
 
 .theme-hacker * {
