@@ -51,6 +51,21 @@ Project page and screenshots:
 - https://slauers.github.io/MonorepoDock/
 - https://slauers.github.io/MonorepoDock/screenshots.html
 
+## Release Pipeline
+
+GitHub Actions release workflow is available at:
+
+- `.github/workflows/release.yml`
+
+How to publish a release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+This triggers a multi-platform build (Windows, macOS, Linux) and publishes assets to the GitHub Release for that tag.
+
 ---
 
 by slauers
