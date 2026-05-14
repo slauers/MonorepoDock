@@ -75,3 +75,27 @@ export type RunProfile = {
   updatedAt: string;
   items: ProfileItem[];
 };
+
+export type ProfileRuntimeState = {
+  profileID: string;
+  status: "idle" | "running" | "partial" | "failed" | "stopped";
+  runningCount: number;
+  stoppedCount: number;
+  failedCount: number;
+  processIDs: string[];
+};
+
+export type RuntimeSessionItem = {
+  processID: string;
+  command: string;
+  workDir: string;
+  project: string;
+  target: string;
+  profileID?: string;
+};
+
+export type RuntimeSession = {
+  workspaceRoot: string;
+  updatedAt: string;
+  items: RuntimeSessionItem[];
+};

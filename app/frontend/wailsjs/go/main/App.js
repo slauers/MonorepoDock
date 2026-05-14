@@ -14,12 +14,24 @@ export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
 
+export function GetLastRuntimeSession(arg1) {
+  return window['go']['main']['App']['GetLastRuntimeSession'](arg1);
+}
+
+export function GetProfileRuntimeState(arg1) {
+  return window['go']['main']['App']['GetProfileRuntimeState'](arg1);
+}
+
 export function InspectWorkspace(arg1) {
   return window['go']['main']['App']['InspectWorkspace'](arg1);
 }
 
 export function ListProcesses() {
   return window['go']['main']['App']['ListProcesses']();
+}
+
+export function ListProfileRuntimeStates() {
+  return window['go']['main']['App']['ListProfileRuntimeStates']();
 }
 
 export function ListProfiles() {
@@ -38,6 +50,10 @@ export function RestartCommand(arg1) {
   return window['go']['main']['App']['RestartCommand'](arg1);
 }
 
+export function RestoreRuntimeSession(arg1) {
+  return window['go']['main']['App']['RestoreRuntimeSession'](arg1);
+}
+
 export function RunCommand(arg1, arg2) {
   return window['go']['main']['App']['RunCommand'](arg1, arg2);
 }
@@ -52,4 +68,8 @@ export function SaveProfile(arg1) {
 
 export function StopCommand(arg1) {
   return window['go']['main']['App']['StopCommand'](arg1);
+}
+
+export function StopProfile(arg1) {
+  return window['go']['main']['App']['StopProfile'](arg1);
 }

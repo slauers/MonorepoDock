@@ -1,4 +1,4 @@
-import type { AnalysisReport, ProcessInfo, RecentWorkspace, RunProfile, WorkspaceSummary } from "../types/workspace";
+import type { AnalysisReport, ProcessInfo, ProfileRuntimeState, RecentWorkspace, RunProfile, RuntimeSession, WorkspaceSummary } from "../types/workspace";
 
 declare global {
   interface Window {
@@ -18,6 +18,11 @@ declare global {
           SaveProfile: (profile: RunProfile) => Promise<void>;
           DeleteProfile: (profileID: string) => Promise<void>;
           RunProfile: (profileID: string) => Promise<ProcessInfo[]>;
+          GetProfileRuntimeState: (profileID: string) => Promise<ProfileRuntimeState>;
+          ListProfileRuntimeStates: () => Promise<ProfileRuntimeState[]>;
+          StopProfile: (profileID: string) => Promise<void>;
+          GetLastRuntimeSession: (root: string) => Promise<RuntimeSession>;
+          RestoreRuntimeSession: (root: string) => Promise<ProcessInfo[]>;
         };
       };
     };
@@ -49,6 +54,11 @@ export const wailsService = {
   saveProfile: (profile: RunProfile) => appApi().SaveProfile(profile),
   deleteProfile: (profileID: string) => appApi().DeleteProfile(profileID),
   runProfile: (profileID: string) => appApi().RunProfile(profileID),
+  getProfileRuntimeState: (profileID: string) => appApi().GetProfileRuntimeState(profileID),
+  listProfileRuntimeStates: () => appApi().ListProfileRuntimeStates(),
+  stopProfile: (profileID: string) => appApi().StopProfile(profileID),
+  getLastRuntimeSession: (root: string) => appApi().GetLastRuntimeSession(root),
+  restoreRuntimeSession: (root: string) => appApi().RestoreRuntimeSession(root),
   onLog: (cb: (payload: unknown) => void) => {
     if (!window.runtime?.EventsOn) {
       return () => undefined;

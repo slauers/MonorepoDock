@@ -18,6 +18,15 @@ type ProfileItem struct {
 	Command string `json:"command"`
 }
 
+type ProfileRuntimeState struct {
+	ProfileID    string   `json:"profileID"`
+	Status       string   `json:"status"`
+	RunningCount int      `json:"runningCount"`
+	StoppedCount int      `json:"stoppedCount"`
+	FailedCount  int      `json:"failedCount"`
+	ProcessIDs   []string `json:"processIDs"`
+}
+
 type ItemRunError struct {
 	ItemID  string `json:"itemId"`
 	Command string `json:"command"`
