@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { wailsService } from "../services/wails";
 import type {
+  AffectedReport,
   AnalysisReport,
   LogEntry,
   ProcessInfo,
@@ -15,6 +16,9 @@ type WorkspaceState = {
   processes: ProcessInfo[];
   logs: LogEntry[];
   analysis: AnalysisReport | null;
+  affected: AffectedReport | null;
+  affectedLoading: boolean;
+  affectedError: string;
   launchingTargetKeys: string[];
   activeLogProcessId: string;
   selectedPath: string;
@@ -35,6 +39,7 @@ type WorkspaceState = {
   targetStatus: (target: Target) => "idle" | "starting" | "running" | "failed" | "success" | "stopped";
   bindEvents: () => void;
   analyzeWorkspace: () => Promise<void>;
+  analyzeAffected: () => Promise<void>;
 };
 
 function upsertProcess(items: ProcessInfo[], next: ProcessInfo): ProcessInfo[] {
@@ -62,6 +67,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   processes: [],
   logs: [],
   analysis: null,
+  affected: null,
+  affectedLoading: false,
+  affectedError: "",
   launchingTargetKeys: [],
   activeLogProcessId: "",
   selectedPath: "",
@@ -248,5 +256,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
     const report = await wailsService.analyzeWorkspace(root);
     set({ analysis: report });
+  },
+  analyzeAffected: async () => {
+    const root = get().selectedPath;
+    if (!root) {
+      return;
+    }
+    try {
+      set({ affectedLoading: true, affectedError: "" });
+      const report = await wailsService.analyzeAffected(root);
+      set({ affected: report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to analyze affected projects";
+      set({ affectedError: message });
+    } finally {
+      set({ affectedLoading: false });
+    }
   },
 }));

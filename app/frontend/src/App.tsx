@@ -17,6 +17,32 @@ const ICON = {
   plus: "+",
 };
 
+function WorkspaceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+      <path
+        d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2c.4 0 .78.16 1.06.44l1.3 1.3c.28.28.66.44 1.06.44H19.5A1.5 1.5 0 0 1 21 8.68V17.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M12 11.2v5.6M9.2 14h5.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function GroupIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+      <rect x="4" y="4" width="7" height="7" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="13" y="4" width="7" height="7" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="4" y="13" width="7" height="7" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M16.5 14.2v5.6M13.7 17h5.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function workspaceLabel(path: string): string {
   const clean = path.replace(/[\\/]+$/, "");
   const parts = clean.split(/[\\/]/);
@@ -129,8 +155,12 @@ export default function App() {
     processes,
     logs,
     analysis,
+    affected,
+    affectedLoading,
+    affectedError,
     activeLogProcessId,
     selectedPath,
+    selectedRoots,
     loading,
     error,
     loadRecents,
@@ -145,6 +175,7 @@ export default function App() {
     isTargetBusy,
     targetStatus,
     analyzeWorkspace,
+    analyzeAffected,
     bindEvents,
   } = useWorkspaceStore();
   const [query, setQuery] = useState("");
@@ -261,6 +292,14 @@ export default function App() {
     }
     return out;
   }, [processes]);
+  const visibleProfiles = useMemo(() => {
+    if (!selectedRoots || selectedRoots.length === 0) {
+      return [];
+    }
+    return profiles.filter((profile) =>
+      profile.items.some((item) => selectedRoots.some((root) => item.workDir.startsWith(root))),
+    );
+  }, [profiles, selectedRoots]);
   const visibleTabProcesses = useMemo(
     () => tabProcesses.filter((process) => !closedLogTabs.includes(process.id)),
     [tabProcesses, closedLogTabs],
@@ -530,6 +569,14 @@ export default function App() {
 
       <div className="body-layout">
         <aside className="side-nav">
+          <div className="side-quick-actions">
+            <button className="quick-icon-btn" onClick={() => void chooseWorkspace()} title={t("openWorkspace", locale)} aria-label={t("openWorkspace", locale)}>
+              <WorkspaceIcon />
+            </button>
+            <button className="quick-icon-btn" onClick={() => void createGroup()} title="Create Group" aria-label="Create Group">
+              <GroupIcon />
+            </button>
+          </div>
           <div className="nav-group">
             <button className={view === "projects" ? "nav-main active" : "nav-main"} onClick={() => setView("projects")}>
               {t("projects", locale)}
@@ -544,12 +591,6 @@ export default function App() {
               {t("analyze", locale)}
             </button>
           </div>
-          <button className="open-btn" onClick={() => void chooseWorkspace()}>
-            {t("openWorkspace", locale)}
-          </button>
-          <button className="open-btn" onClick={() => void createGroup()}>
-            New Group
-          </button>
           <div className="sidebar-section">
             <button className="section-header" onClick={() => setShowRecents((v) => !v)}>
               <span>{showRecents ? "▾" : "▸"}</span>
@@ -604,15 +645,15 @@ export default function App() {
               <div className="profiles-block">
             <div className="profiles-scroll">
               {profileLoading && <div className="profiles-empty">Loading...</div>}
-              {!profileLoading && profiles.length === 0 && (
+              {!profileLoading && visibleProfiles.length === 0 && (
                 <div className="profiles-empty">
                   <div>{t("noRunProfilesYet", locale)}</div>
                   <div className="profiles-hint">{t("runProfilesHint", locale)}</div>
                 </div>
               )}
-              {!profileLoading && profiles.length > 0 && (
+              {!profileLoading && visibleProfiles.length > 0 && (
                 <ul className="profiles-list">
-                  {profiles.map((profile) => (
+                  {visibleProfiles.map((profile) => (
                     <li key={profile.id} className="profile-item">
                     <div className="profile-meta">
                       <button
@@ -787,8 +828,8 @@ export default function App() {
                                   </button>
                                   <div className="profile-popover-label">{t("addToExistingProfile", locale)}</div>
                                   <div className="profile-popover-list">
-                                    {profiles.length === 0 && <div className="profile-popover-empty">{t("noRunProfilesYet", locale)}</div>}
-                                    {profiles.map((profile) => (
+                                    {visibleProfiles.length === 0 && <div className="profile-popover-empty">{t("noRunProfilesYet", locale)}</div>}
+                                    {visibleProfiles.map((profile) => (
                                       <button
                                         key={profile.id}
                                         className="profile-popover-btn secondary"
@@ -912,6 +953,42 @@ export default function App() {
                     {finding.suggestion && <div>Suggestion: {finding.suggestion}</div>}
                   </div>
                 ))}
+              </pre>
+              <div className="logs-head" style={{ marginTop: 10 }}>{t("affectedProjects", locale)}</div>
+              <div className="action-group" style={{ marginBottom: 8 }}>
+                <button className="action-text-btn icon-logs" title={t("analyzeAffected", locale)} onClick={() => void analyzeAffected()}>
+                  <span>{t("analyzeAffected", locale)}</span>
+                </button>
+              </div>
+              <pre>
+                {affectedLoading && <div>{t("analyzingChangedFiles", locale)}</div>}
+                {!affectedLoading && affectedError && <div className="error">{affectedError}</div>}
+                {!affectedLoading && !affectedError && affected?.notGitRepository && <div>{affected.message || t("notGitRepo", locale)}</div>}
+                {!affectedLoading && !affectedError && affected && !affected.notGitRepository && affected.changedFiles.length === 0 && <div>{t("affectedEmpty", locale)}</div>}
+                {!affectedLoading && !affectedError && affected && !affected.notGitRepository && affected.changedFiles.length > 0 && (
+                  <div>
+                    <div>{affected.changedFiles.length} {t("changedFiles", locale)}</div>
+                    {affected.changedFiles.map((file, idx) => (
+                      <div key={`${file.path}-${idx}`} className="mono">[{file.status}] {file.path}</div>
+                    ))}
+                    <div style={{ marginTop: 8 }}>{affected.projects.length} {t("affectedProjects", locale).toLowerCase()}</div>
+                    {affected.projects.map((project) => {
+                      const workspaceProject = summary?.projects.find((p) => p.name === project.name);
+                      return (
+                        <div key={project.name} style={{ marginTop: 6 }}>
+                          <div><strong>{project.name}</strong></div>
+                          <div className="action-group" style={{ margin: "4px 0" }}>
+                            {(workspaceProject?.targets ?? []).slice(0, 4).map((target) => (
+                              <button key={target.id} className="action-text-btn" onClick={() => void runTarget(target)}>
+                                {target.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </pre>
             </div>
           )}

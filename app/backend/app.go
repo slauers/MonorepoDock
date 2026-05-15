@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"monodock/backend/internal/affected"
 	"monodock/backend/internal/analyzer"
 	"monodock/backend/internal/config"
 	"monodock/backend/internal/groups"
@@ -24,6 +25,7 @@ type App struct {
 	workspace       *workspace.Service
 	groups          *groups.Service
 	analyzer        *analyzer.Service
+	affected        *affected.Service
 	profiles        *profiles.Service
 	processes       *runner.Manager
 	recentStore     *config.Store
@@ -59,6 +61,7 @@ func NewApp() (*App, error) {
 		workspace:    workspace.NewService(),
 		groups:       groupsSvc,
 		analyzer:     analyzer.NewService(),
+		affected:     affected.NewService(),
 		profiles:     profilesSvc,
 		processes:    runner.NewManager(),
 		recentStore:  store,
@@ -244,6 +247,17 @@ func (a *App) AnalyzeWorkspace(root string) (analyzer.Report, error) {
 		return analyzer.Report{}, errors.New("application context is not ready")
 	}
 	return a.analyzer.Analyze(a.ctx, root)
+}
+
+func (a *App) AnalyzeAffected(root string) (affected.Report, error) {
+	if a.ctx == nil {
+		return affected.Report{}, errors.New("application context is not ready")
+	}
+	summary, err := a.workspace.Inspect(a.ctx, root)
+	if err != nil {
+		return affected.Report{}, err
+	}
+	return a.affected.Analyze(a.ctx, root, summary)
 }
 
 func (a *App) CloseApp() {
