@@ -15,10 +15,19 @@ export type Target = {
 
 export type WorkspaceSummary = {
   rootPath: string;
+  rootPaths?: string[];
   packageManager: string;
   monorepoTool: string;
   gitBranch: string;
   projects: Project[];
+};
+
+export type WorkspaceGroup = {
+  id: string;
+  name: string;
+  roots: string[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ProcessInfo = {

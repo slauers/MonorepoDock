@@ -1,4 +1,4 @@
-import type { AnalysisReport, ProcessInfo, ProfileRuntimeState, RecentWorkspace, RunProfile, RuntimeSession, WorkspaceSummary } from "../types/workspace";
+import type { AnalysisReport, ProcessInfo, ProfileRuntimeState, RecentWorkspace, RunProfile, RuntimeSession, WorkspaceGroup, WorkspaceSummary } from "../types/workspace";
 
 declare global {
   interface Window {
@@ -6,8 +6,13 @@ declare global {
       main?: {
         App?: {
           OpenWorkspaceDialog: () => Promise<string>;
+          OpenGroupRootsDialog: () => Promise<string[]>;
           InspectWorkspace: (root: string) => Promise<WorkspaceSummary>;
+          InspectGroup: (groupID: string) => Promise<WorkspaceSummary>;
           ListRecentWorkspaces: () => Promise<RecentWorkspace[]>;
+          ListGroups: () => Promise<WorkspaceGroup[]>;
+          SaveGroup: (group: WorkspaceGroup) => Promise<void>;
+          DeleteGroup: (groupID: string) => Promise<void>;
           RunCommand: (workDir: string, command: string) => Promise<ProcessInfo>;
           StopCommand: (processId: string) => Promise<void>;
           RestartCommand: (processId: string) => Promise<ProcessInfo>;
@@ -42,8 +47,13 @@ function appApi() {
 
 export const wailsService = {
   openWorkspaceDialog: () => appApi().OpenWorkspaceDialog(),
+  openGroupRootsDialog: () => appApi().OpenGroupRootsDialog(),
   inspectWorkspace: (root: string) => appApi().InspectWorkspace(root),
+  inspectGroup: (groupID: string) => appApi().InspectGroup(groupID),
   listRecentWorkspaces: () => appApi().ListRecentWorkspaces(),
+  listGroups: () => appApi().ListGroups(),
+  saveGroup: (group: WorkspaceGroup) => appApi().SaveGroup(group),
+  deleteGroup: (groupID: string) => appApi().DeleteGroup(groupID),
   runCommand: (workDir: string, command: string) => appApi().RunCommand(workDir, command),
   stopCommand: (processId: string) => appApi().StopCommand(processId),
   restartCommand: (processId: string) => appApi().RestartCommand(processId),

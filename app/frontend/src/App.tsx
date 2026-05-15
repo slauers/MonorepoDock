@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
-import type { ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target } from "./types/workspace";
+import type { ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
 import { getLocale, t } from "./i18n";
 import { wailsService } from "./services/wails";
 
@@ -111,6 +111,16 @@ function prettifyDetails(details: string): string {
   }
 }
 
+function logTone(message: string, stream: string): "success" | "error" | "warn" | "info" | "muted" {
+  const text = message.trimStart().toLowerCase();
+  if (stream === "stderr") return "error";
+  if (text.startsWith("✓") || text.includes("ready in") || text.includes("compiled successfully")) return "success";
+  if (text.startsWith("✖") || text.startsWith("x ") || text.includes("failed") || text.includes("error")) return "error";
+  if (text.startsWith("⚠") || text.startsWith("warn") || text.includes("deprecated")) return "warn";
+  if (text.startsWith("•") || text.startsWith("-") || text.startsWith(">")) return "muted";
+  return "info";
+}
+
 export default function App() {
   const locale = getLocale();
   const {
@@ -126,6 +136,7 @@ export default function App() {
     loadRecents,
     chooseWorkspace,
     inspect,
+    inspectGroup,
     runTarget,
     stopProcess,
     restartProcess,
@@ -148,6 +159,10 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [activeProfileTargetId, setActiveProfileTargetId] = useState("");
   const [expandedProfiles, setExpandedProfiles] = useState<string[]>([]);
+  const [showRecents, setShowRecents] = useState(true);
+  const [showGroups, setShowGroups] = useState(true);
+  const [showRunProfiles, setShowRunProfiles] = useState(true);
+  const [groups, setGroups] = useState<WorkspaceGroup[]>([]);
   const [lastSession, setLastSession] = useState<RuntimeSession | null>(null);
   const [ignoredRestoreRoots, setIgnoredRestoreRoots] = useState<string[]>([]);
   const [restoreLoading, setRestoreLoading] = useState(false);
@@ -169,10 +184,16 @@ export default function App() {
     }
   };
 
+  const loadGroups = async () => {
+    const items = await wailsService.listGroups();
+    setGroups(items);
+  };
+
   useEffect(() => {
     bindEvents();
     void loadRecents();
     void loadProfiles();
+    void loadGroups();
   }, [loadRecents, bindEvents]);
 
   useEffect(() => {
@@ -418,6 +439,22 @@ export default function App() {
     }
   };
 
+  const createGroup = async () => {
+    const name = window.prompt("Group name");
+    if (!name || !name.trim()) return;
+    const roots = await wailsService.openGroupRootsDialog();
+    if (!roots || roots.length === 0) return;
+    const now = new Date().toISOString();
+    await wailsService.saveGroup({
+      id: "",
+      name: name.trim(),
+      roots,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await loadGroups();
+  };
+
   return (
     <>
       {/* Splash disabled for now; we will redesign and enable it later.
@@ -510,20 +547,61 @@ export default function App() {
           <button className="open-btn" onClick={() => void chooseWorkspace()}>
             {t("openWorkspace", locale)}
           </button>
-          <div className="recent-block">
-            <div className="recent-title">{t("recents", locale)}</div>
-            <ul className="recent-list">
-              {recents.map((item) => (
-                <li key={item.path}>
-                  <button className="recent-item" onClick={() => void inspect(item.path)} title={item.path}>
-                    {workspaceLabel(item.path)}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <button className="open-btn" onClick={() => void createGroup()}>
+            New Group
+          </button>
+          <div className="sidebar-section">
+            <button className="section-header" onClick={() => setShowRecents((v) => !v)}>
+              <span>{showRecents ? "▾" : "▸"}</span>
+              <span>{t("recents", locale).toUpperCase()}</span>
+            </button>
+            {showRecents && (
+              <div className="recent-block">
+                <ul className="recent-list">
+                  {recents.map((item) => (
+                    <li key={item.path}>
+                      <button className="recent-item" onClick={() => void inspect(item.path)} title={item.path}>
+                        {workspaceLabel(item.path)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-          <div className="profiles-block">
-            <div className="recent-title">{t("runProfiles", locale).toUpperCase()}</div>
+          <div className="sidebar-section">
+            <button className="section-header" onClick={() => setShowGroups((v) => !v)}>
+              <span>{showGroups ? "▾" : "▸"}</span>
+              <span>GROUPS</span>
+            </button>
+            {showGroups && (
+              <div className="profiles-block">
+                <div className="profiles-scroll">
+                  {groups.length === 0 && <div className="profiles-empty">No groups yet</div>}
+                  {groups.length > 0 && (
+                    <ul className="profiles-list">
+                      {groups.map((group) => (
+                        <li key={group.id} className="profile-item">
+                          <button className="profile-name-btn" onClick={() => void inspectGroup(group.id)} title={group.roots.join("\n")}>
+                            <span className="profile-head-dot" />
+                            {group.name}
+                          </button>
+                          <div className="runtime-meta">{group.roots.length} roots</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="sidebar-section">
+            <button className="section-header" onClick={() => setShowRunProfiles((v) => !v)}>
+              <span>{showRunProfiles ? "▾" : "▸"}</span>
+              <span>{t("runProfiles", locale).toUpperCase()}</span>
+            </button>
+            {showRunProfiles && (
+              <div className="profiles-block">
             <div className="profiles-scroll">
               {profileLoading && <div className="profiles-empty">Loading...</div>}
               {!profileLoading && profiles.length === 0 && (
@@ -591,6 +669,8 @@ export default function App() {
                 </ul>
               )}
             </div>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -887,9 +967,9 @@ export default function App() {
               <pre>
                 {activeLogProcessId === "" && <div className="empty-state">{t("selectLogTab", locale)}</div>}
                 {visibleLogs.map((entry, index) => (
-                  <div className="log-line" key={`${entry.timestamp}-${index}`}>
+                  <div className={`log-line tone-${logTone(entry.message, entry.stream)}`} key={`${entry.timestamp}-${index}`}>
                     <span className="log-line-text">
-                      [{entry.stream}] {entry.message}
+                      {entry.stream === "stdout" ? entry.message : `[${entry.stream}] ${entry.message}`}
                     </span>
                     <button
                       className={`copy-btn copy-line-btn ${copiedKey === `${entry.timestamp}-${index}` ? "is-copied" : ""}`}

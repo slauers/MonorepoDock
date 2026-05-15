@@ -10,6 +10,10 @@ export function CloseApp() {
   return window['go']['main']['App']['CloseApp']();
 }
 
+export function DeleteGroup(arg1) {
+  return window['go']['main']['App']['DeleteGroup'](arg1);
+}
+
 export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
@@ -22,8 +26,16 @@ export function GetProfileRuntimeState(arg1) {
   return window['go']['main']['App']['GetProfileRuntimeState'](arg1);
 }
 
+export function InspectGroup(arg1) {
+  return window['go']['main']['App']['InspectGroup'](arg1);
+}
+
 export function InspectWorkspace(arg1) {
   return window['go']['main']['App']['InspectWorkspace'](arg1);
+}
+
+export function ListGroups() {
+  return window['go']['main']['App']['ListGroups']();
 }
 
 export function ListProcesses() {
@@ -40,6 +52,10 @@ export function ListProfiles() {
 
 export function ListRecentWorkspaces() {
   return window['go']['main']['App']['ListRecentWorkspaces']();
+}
+
+export function OpenGroupRootsDialog() {
+  return window['go']['main']['App']['OpenGroupRootsDialog']();
 }
 
 export function OpenWorkspaceDialog() {
@@ -60,6 +76,10 @@ export function RunCommand(arg1, arg2) {
 
 export function RunProfile(arg1) {
   return window['go']['main']['App']['RunProfile'](arg1);
+}
+
+export function SaveGroup(arg1) {
+  return window['go']['main']['App']['SaveGroup'](arg1);
 }
 
 export function SaveProfile(arg1) {

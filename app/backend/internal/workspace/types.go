@@ -16,9 +16,10 @@ type Target struct {
 }
 
 type Summary struct {
-	RootPath      string    `json:"rootPath"`
-	PackageManager string   `json:"packageManager"`
-	MonorepoTool  string    `json:"monorepoTool"`
-	GitBranch     string    `json:"gitBranch"`
-	Projects      []Project `json:"projects"`
+	RootPath       string    `json:"rootPath"`
+	RootPaths      []string  `json:"rootPaths,omitempty"`
+	PackageManager string    `json:"packageManager"`
+	MonorepoTool   string    `json:"monorepoTool"`
+	GitBranch      string    `json:"gitBranch"`
+	Projects       []Project `json:"projects"`
 }

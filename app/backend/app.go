@@ -10,6 +10,7 @@ import (
 
 	"monodock/backend/internal/analyzer"
 	"monodock/backend/internal/config"
+	"monodock/backend/internal/groups"
 	"monodock/backend/internal/profiles"
 	"monodock/backend/internal/runner"
 	"monodock/backend/internal/session"
@@ -21,6 +22,7 @@ import (
 type App struct {
 	ctx             context.Context
 	workspace       *workspace.Service
+	groups          *groups.Service
 	analyzer        *analyzer.Service
 	profiles        *profiles.Service
 	processes       *runner.Manager
@@ -44,6 +46,10 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	groupsSvc, err := groups.NewService(filepath.Join(cfgDir, "monodock"))
+	if err != nil {
+		return nil, err
+	}
 	sessionStore, err := session.NewStore(filepath.Join(cfgDir, "monodock"))
 	if err != nil {
 		return nil, err
@@ -51,6 +57,7 @@ func NewApp() (*App, error) {
 
 	return &App{
 		workspace:    workspace.NewService(),
+		groups:       groupsSvc,
 		analyzer:     analyzer.NewService(),
 		profiles:     profilesSvc,
 		processes:    runner.NewManager(),
@@ -95,6 +102,27 @@ func (a *App) OpenWorkspaceDialog() (string, error) {
 	return path, nil
 }
 
+func (a *App) OpenGroupRootsDialog() ([]string, error) {
+	if a.ctx == nil {
+		return nil, errors.New("application context is not ready")
+	}
+
+	paths := []string{}
+	for {
+		path, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+			Title: "Select Folder for Workspace Group (Cancel to finish)",
+		})
+		if err != nil {
+			return nil, err
+		}
+		if path == "" {
+			break
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
 func (a *App) InspectWorkspace(root string) (workspace.Summary, error) {
 	if a.ctx == nil {
 		return workspace.Summary{}, errors.New("application context is not ready")
@@ -121,6 +149,33 @@ func (a *App) InspectWorkspace(root string) (workspace.Summary, error) {
 
 func (a *App) ListRecentWorkspaces() ([]config.RecentWorkspace, error) {
 	return a.recentStore.List()
+}
+
+func (a *App) InspectGroup(groupID string) (workspace.Summary, error) {
+	if a.ctx == nil {
+		return workspace.Summary{}, errors.New("application context is not ready")
+	}
+
+	summary, err := a.groups.InspectGroup(a.ctx, groupID, a.workspace)
+	if err != nil {
+		return workspace.Summary{}, err
+	}
+
+	a.activeWorkspace = summary.RootPath
+	a.lastSummary = summary
+	return summary, nil
+}
+
+func (a *App) ListGroups() ([]groups.Group, error) {
+	return a.groups.ListGroups()
+}
+
+func (a *App) SaveGroup(group groups.Group) error {
+	return a.groups.SaveGroup(group)
+}
+
+func (a *App) DeleteGroup(groupID string) error {
+	return a.groups.DeleteGroup(groupID)
 }
 
 func (a *App) RunCommand(workDir, command string) (runner.Process, error) {
