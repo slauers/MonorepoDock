@@ -267,8 +267,8 @@ func (a *App) CloseApp() {
 	runtime.Quit(a.ctx)
 }
 
-func (a *App) ListProfiles() ([]profiles.Profile, error) {
-	return a.profiles.ListProfiles()
+func (a *App) ListProfiles(workspaceRoot string) ([]profiles.Profile, error) {
+	return a.profiles.ListProfilesByWorkspace(workspaceRoot)
 }
 
 func (a *App) SaveProfile(profile profiles.Profile) error {

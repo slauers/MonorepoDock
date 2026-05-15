@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
-import type { ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
+import type { ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
 import { getLocale, t } from "./i18n";
 import { wailsService } from "./services/wails";
 
@@ -16,6 +16,20 @@ const ICON = {
   close: "\u00D7",
   plus: "+",
 };
+
+function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+      <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.6" />
+      {collapsed ? (
+        <path d="M12 12h6M16 9l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="M18 12h-6M14 9l-3 3 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
+  );
+}
 
 function WorkspaceIcon() {
   return (
@@ -91,6 +105,50 @@ function rowClassFromStatus(status: "idle" | "starting" | "running" | "failed" |
     default:
       return "";
   }
+}
+
+function formatUptime(startedAt?: string): string {
+  if (!startedAt) return "-";
+  const ms = Date.now() - new Date(startedAt).getTime();
+  if (ms <= 0) return "0s";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function processHealth(process: ProcessInfo): "running" | "warning" | "failed" | "stopped" | "idle" {
+  if ((process.status === "running" || process.status === "starting") && process.healthStatus !== "failed") {
+    const base = process.lastOutputAt || process.startedAt;
+    if (base && Date.now() - new Date(base).getTime() > 5 * 60 * 1000) {
+      return "warning";
+    }
+  }
+  if (process.healthStatus) return process.healthStatus;
+  if (process.status === "failed") return "failed";
+  if (process.status === "running" || process.status === "starting") return "running";
+  if (process.status === "stopped" || process.status === "exited") return "stopped";
+  return "idle";
+}
+
+function processHealthDetails(process: ProcessInfo): string {
+  const health = processHealth(process);
+  if (health === "failed") {
+    return process.exitCode !== undefined ? `Exit code ${process.exitCode}` : "Process failed";
+  }
+  if (health === "warning") {
+    return `No output since ${process.lastOutputAt ? new Date(process.lastOutputAt).toLocaleTimeString() : "a while"}`;
+  }
+  if (health === "running") {
+    return `Uptime ${formatUptime(process.startedAt)}`;
+  }
+  if (health === "stopped") {
+    return process.exitCode !== undefined ? `Exited with code ${process.exitCode}` : "Stopped";
+  }
+  return "Idle";
 }
 
 function severityRank(severity: string): number {
@@ -200,11 +258,13 @@ export default function App() {
   const [restoreMessage, setRestoreMessage] = useState("");
   const [runningProfileIDs, setRunningProfileIDs] = useState<string[]>([]);
   const [stoppingProfileIDs, setStoppingProfileIDs] = useState<string[]>([]);
+  const [activeProfileMenuID, setActiveProfileMenuID] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const loadProfiles = async () => {
     try {
       setProfileLoading(true);
-      const items = await wailsService.listProfiles();
+      const items = await wailsService.listProfiles(selectedPath || "");
       setProfiles(items);
       const runtimeStates = await wailsService.listProfileRuntimeStates();
       const indexed: Record<string, ProfileRuntimeState> = {};
@@ -223,18 +283,38 @@ export default function App() {
   useEffect(() => {
     bindEvents();
     void loadRecents();
-    void loadProfiles();
     void loadGroups();
   }, [loadRecents, bindEvents]);
 
   useEffect(() => {
+    void loadProfiles();
+  }, [selectedPath]);
+
+  useEffect(() => {
     const saved = window.localStorage.getItem("monodock-theme");
     if (saved === "light" || saved === "dark") setTheme(saved);
+    const savedSidebar = window.localStorage.getItem("monodock-sidebar-collapsed");
+    setSidebarCollapsed(savedSidebar === "1");
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem("monodock-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    window.localStorage.setItem("monodock-sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        setSidebarCollapsed((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const root = selectedPath.trim();
@@ -247,6 +327,13 @@ export default function App() {
         const session = await wailsService.getLastRuntimeSession(root);
         if (session?.items?.length > 0) {
           setLastSession(session);
+          window.setTimeout(() => {
+            setLastSession((current) => {
+              if (!current) return null;
+              if (current.workspaceRoot !== session.workspaceRoot) return current;
+              return null;
+            });
+          }, 8000);
           return;
         }
         setLastSession(null);
@@ -292,14 +379,7 @@ export default function App() {
     }
     return out;
   }, [processes]);
-  const visibleProfiles = useMemo(() => {
-    if (!selectedRoots || selectedRoots.length === 0) {
-      return [];
-    }
-    return profiles.filter((profile) =>
-      profile.items.some((item) => selectedRoots.some((root) => item.workDir.startsWith(root))),
-    );
-  }, [profiles, selectedRoots]);
+  const visibleProfiles = useMemo(() => profiles, [profiles]);
   const visibleTabProcesses = useMemo(
     () => tabProcesses.filter((process) => !closedLogTabs.includes(process.id)),
     [tabProcesses, closedLogTabs],
@@ -337,11 +417,24 @@ export default function App() {
   const runProfile = async (profileId: string) => {
     setRunningProfileIDs((state) => (state.includes(profileId) ? state : [...state, profileId]));
     try {
-      await wailsService.runProfile(profileId);
+      const started = await wailsService.runProfile(profileId);
+      const profile = visibleProfiles.find((item) => item.id === profileId);
+      if (profile?.openLogsOnRun) {
+        for (const proc of started) {
+          openLogsForProcess(proc.id);
+        }
+      }
+      const failed = Math.max(profile?.items.length ?? 0, started.length) - started.length;
+      if (failed > 0) {
+        setRestoreMessage(`${started.length} started, ${failed} failed`);
+      } else {
+        setRestoreMessage(`Starting ${profile?.name ?? "profile"}... ${started.length} processes started`);
+      }
       await loadProfiles();
       if (selectedPath) await inspect(selectedPath);
     } finally {
       setRunningProfileIDs((state) => state.filter((id) => id !== profileId));
+      window.setTimeout(() => setRestoreMessage(""), 2500);
     }
   };
 
@@ -380,7 +473,11 @@ export default function App() {
 
   const profileStateSummary = (state: ProfileRuntimeState | undefined): string => {
     if (!state || state.status === "idle") return "Never executed";
-    if (state.status === "running") return `${state.runningCount} processes`;
+    const processByID = new Map(processes.map((proc) => [proc.id, proc]));
+    const warningCount = state.processIDs.filter((id) => processByID.get(id)?.healthStatus === "warning").length;
+    if (warningCount > 0) return `Warning · ${warningCount} silent process${warningCount > 1 ? "es" : ""}`;
+    if (state.status === "running") return `Running · ${state.runningCount} processes`;
+    if (state.status === "failed") return `Failed · ${state.failedCount || 1} process`;
     const parts: string[] = [];
     if (state.runningCount > 0) parts.push(`${state.runningCount} running`);
     if (state.failedCount > 0) parts.push(`${state.failedCount} failed`);
@@ -397,11 +494,24 @@ export default function App() {
     });
     if (matchedIDs.length === 0) return "idle";
     const matched = matchedIDs.map((id) => processByID.get(id)).filter(Boolean);
+    if (matched.some((p) => p?.healthStatus === "warning")) return "partial";
     if (matched.some((p) => p?.status === "running" || p?.status === "starting")) return "running";
     if (matched.some((p) => p?.status === "failed")) return "failed";
     if (matched.some((p) => p?.status === "stopped")) return "stopped";
     if (matched.some((p) => p?.status === "exited")) return "success";
     return "stopped";
+  };
+
+  const profileItemUptime = (state: ProfileRuntimeState | undefined, item: ProfileItem): string => {
+    if (!state) return "-";
+    const processByID = new Map(processes.map((proc) => [proc.id, proc]));
+    const matched = state.processIDs
+      .map((id) => processByID.get(id))
+      .filter((proc) => proc && proc.workDir === item.workDir && proc.command === item.command) as ProcessInfo[];
+    if (matched.length === 0) return "-";
+    const running = matched.find((proc) => proc.status === "running" || proc.status === "starting");
+    const latest = running ?? matched[0];
+    return formatUptime(latest.startedAt);
   };
 
   const makeId = () => {
@@ -435,7 +545,13 @@ export default function App() {
     const now = new Date().toISOString();
     const profile: RunProfile = {
       id: makeId(),
+      workspaceRoot: selectedPath || "",
       name,
+      description: "",
+      color: "blue",
+      icon: "layers",
+      autoStart: false,
+      openLogsOnRun: true,
       createdAt: now,
       updatedAt: now,
       items: [buildProfileItem(projectName, target)],
@@ -454,12 +570,52 @@ export default function App() {
 
     const updated: RunProfile = {
       ...profile,
+      workspaceRoot: profile.workspaceRoot || selectedPath || "",
       updatedAt: new Date().toISOString(),
       items: [...profile.items, item],
     };
     await wailsService.saveProfile(updated);
     await loadProfiles();
     setActiveProfileTargetId("");
+  };
+
+  const updateProfile = async (profile: RunProfile) => {
+    const normalized: RunProfile = {
+      ...profile,
+      workspaceRoot: profile.workspaceRoot || selectedPath || "",
+    };
+    await wailsService.saveProfile(normalized);
+    await loadProfiles();
+  };
+
+  const renameProfile = async (profile: RunProfile) => {
+    const value = window.prompt("Rename profile", profile.name);
+    const name = value?.trim() ?? "";
+    if (!name) return;
+    await updateProfile({ ...profile, name, updatedAt: new Date().toISOString() });
+  };
+
+  const editProfileDescription = async (profile: RunProfile) => {
+    const description = window.prompt("Description", profile.description || "") ?? "";
+    await updateProfile({ ...profile, description: description.trim(), updatedAt: new Date().toISOString() });
+  };
+
+  const toggleProfileOpenLogs = async (profile: RunProfile) => {
+    await updateProfile({ ...profile, openLogsOnRun: !profile.openLogsOnRun, updatedAt: new Date().toISOString() });
+  };
+
+  const copyProfile = async (profile: RunProfile) => {
+    const now = new Date().toISOString();
+    const copied: RunProfile = {
+      ...profile,
+      id: makeId(),
+      name: `${profile.name} Copy`,
+      createdAt: now,
+      updatedAt: now,
+      items: profile.items.map((item) => ({ ...item, id: makeId() })),
+    };
+    await wailsService.saveProfile(copied);
+    await loadProfiles();
   };
 
   const restoreSession = async () => {
@@ -514,7 +670,7 @@ export default function App() {
           </div>
         </div>
       )} */}
-      <main className={`docker-shell ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
+      <main className={`docker-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${hackerMode ? "theme-hacker" : theme === "light" ? "theme-light" : "theme-dark"}`}>
       <header className="top-header">
         <div className="header-left">
           <div>MonoDock Desktop</div>
@@ -568,8 +724,16 @@ export default function App() {
       </header>
 
       <div className="body-layout">
-        <aside className="side-nav">
+        <aside className={`side-nav ${sidebarCollapsed ? "collapsed" : ""}`}>
           <div className="side-quick-actions">
+            <button
+              className="quick-icon-btn"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              title="Hide sidebar"
+              aria-label="Hide sidebar"
+            >
+              <SidebarToggleIcon collapsed={false} />
+            </button>
             <button className="quick-icon-btn" onClick={() => void chooseWorkspace()} title={t("openWorkspace", locale)} aria-label={t("openWorkspace", locale)}>
               <WorkspaceIcon />
             </button>
@@ -618,7 +782,12 @@ export default function App() {
             {showGroups && (
               <div className="profiles-block">
                 <div className="profiles-scroll">
-                  {groups.length === 0 && <div className="profiles-empty">No groups yet</div>}
+                  {groups.length === 0 && (
+                    <div className="profiles-empty">
+                      <div>No workspace groups yet</div>
+                      <div className="profiles-hint">Create one to combine multiple repositories</div>
+                    </div>
+                  )}
                   {groups.length > 0 && (
                     <ul className="profiles-list">
                       {groups.map((group) => (
@@ -669,6 +838,7 @@ export default function App() {
                         <span className="profile-head-dot" />
                         {profile.name}
                       </button>
+                      {profile.description && <div className="profile-description">{profile.description}</div>}
                     </div>
                     <div className="profile-actions">
                       <button className="profile-run-btn" onClick={() => void runProfile(profile.id)} title={t("run", locale)} disabled={runningProfileIDs.includes(profile.id)}>
@@ -685,7 +855,27 @@ export default function App() {
                       <button className="profile-delete-btn" onClick={() => void deleteProfile(profile.id)} title={t("delete", locale)} aria-label={t("delete", locale)}>
                         {ICON.close}
                       </button>
+                      <button
+                        className="profile-menu-btn"
+                        title="Profile actions"
+                        onClick={() => setActiveProfileMenuID((state) => (state === profile.id ? "" : profile.id))}
+                      >
+                        ⋯
+                      </button>
                     </div>
+                    {activeProfileMenuID === profile.id && (
+                      <div className="profile-menu-popover">
+                        <button className="profile-popover-btn secondary" onClick={() => void runProfile(profile.id)}>Run</button>
+                        <button className="profile-popover-btn secondary" onClick={() => void stopProfile(profile.id)}>Stop</button>
+                        <button className="profile-popover-btn secondary" onClick={() => void renameProfile(profile)}>Rename</button>
+                        <button className="profile-popover-btn secondary" onClick={() => void editProfileDescription(profile)}>Edit description</button>
+                        <button className="profile-popover-btn secondary" onClick={() => void toggleProfileOpenLogs(profile)}>
+                          {profile.openLogsOnRun ? "Disable auto-open logs" : "Enable auto-open logs"}
+                        </button>
+                        <button className="profile-popover-btn secondary" onClick={() => void copyProfile(profile)}>Copy profile</button>
+                        <button className="profile-popover-btn secondary danger" onClick={() => void deleteProfile(profile.id)}>Delete</button>
+                      </div>
+                    )}
                     <div className="profile-runtime">
                       <span className={`runtime-dot ${(profileStates[profile.id]?.status ?? "idle")}`} />
                       <span className={`runtime-status ${(profileStates[profile.id]?.status ?? "idle")}`}>{profileStateLabel(profileStates[profile.id])}</span>
@@ -699,7 +889,7 @@ export default function App() {
                             <div key={item.id} className="profile-tree-row">
                               <span className={`runtime-dot ${itemStatus}`} />
                               <span className={`runtime-status ${itemStatus}`}>{item.target}</span>
-                              <span className="runtime-meta mono">{item.command}</span>
+                              <span className="runtime-meta mono">{item.command} - {profileItemUptime(profileStates[profile.id], item)}</span>
                             </div>
                           );
                         })}
@@ -714,6 +904,16 @@ export default function App() {
             )}
           </div>
         </aside>
+        {sidebarCollapsed && (
+          <button
+            className="sidebar-restore-fab"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+          >
+            <SidebarToggleIcon collapsed />
+          </button>
+        )}
 
         <section className="content-area">
           <div className="content-head">
@@ -863,6 +1063,10 @@ export default function App() {
                     <th>{t("project", locale)}</th>
                     <th>{t("command", locale)}</th>
                     <th>{t("status", locale)}</th>
+                    <th>Health</th>
+                    <th>Uptime</th>
+                    <th>Restarts</th>
+                    <th>Exit</th>
                     <th>{t("action", locale)}</th>
                   </tr>
                 </thead>
@@ -871,7 +1075,17 @@ export default function App() {
                     <tr key={process.id}>
                       <td>{processProjectLabel(process.workDir, summary?.projects)}</td>
                       <td className="mono">{process.command}</td>
-                      <td>{process.status}</td>
+                      <td title={processHealthDetails(process)}>
+                        <span className={`runtime-dot ${processHealth(process)}`} style={{ marginRight: 6 }} />
+                        {process.healthStatus || process.status} · {formatUptime(process.startedAt)}{process.restartCount > 0 ? ` · r${process.restartCount}` : ""}
+                      </td>
+                      <td>
+                        <span className={`runtime-dot ${processHealth(process)}`} style={{ marginRight: 6 }} />
+                        {processHealth(process)}
+                      </td>
+                      <td>{formatUptime(process.startedAt)}</td>
+                      <td>{process.restartCount}</td>
+                      <td>{process.exitCode ?? "-"}</td>
                       <td>
                         <div className="action-group">
                           <button
@@ -1012,10 +1226,10 @@ export default function App() {
                     key={process.id}
                     className={process.id === activeLogProcessId ? "tab active" : "tab"}
                     onClick={() => setActiveLogProcess(process.id)}
-                    title={`${processProjectLabel(process.workDir, summary?.projects)} ${ICON.bullet} ${process.command}`}
+                    title={`${processHealthDetails(process)} | ${processProjectLabel(process.workDir, summary?.projects)} ${ICON.bullet} ${process.command}`}
                   >
                     <span className="tab-label">
-                      {processProjectLabel(process.workDir, summary?.projects)} {ICON.bullet} {process.command}
+                      {processHealth(process) === "running" ? "●" : processHealth(process) === "warning" ? "⚠" : processHealth(process) === "failed" ? "✕" : "○"} {processProjectLabel(process.workDir, summary?.projects)} {ICON.bullet} {process.command}
                     </span>
                     <span
                       role="button"

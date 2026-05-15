@@ -45,9 +45,31 @@ func (s *Service) ListProfiles() ([]Profile, error) {
 	return items, nil
 }
 
+func (s *Service) ListProfilesByWorkspace(workspaceRoot string) ([]Profile, error) {
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	items, err := s.ListProfiles()
+	if err != nil {
+		return nil, err
+	}
+	if workspaceRoot == "" {
+		return items, nil
+	}
+	filtered := make([]Profile, 0, len(items))
+	for _, item := range items {
+		if sameWorkspace(item.WorkspaceRoot, workspaceRoot) || legacyProfileMatchesWorkspace(item, workspaceRoot) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
 func (s *Service) SaveProfile(profile Profile) error {
 	now := time.Now().UTC()
 	profile.Name = strings.TrimSpace(profile.Name)
+	profile.WorkspaceRoot = strings.TrimSpace(profile.WorkspaceRoot)
+	profile.Description = strings.TrimSpace(profile.Description)
+	profile.Color = strings.TrimSpace(profile.Color)
+	profile.Icon = strings.TrimSpace(profile.Icon)
 	if profile.ID == "" {
 		profile.ID = generateID("profile")
 	}
@@ -79,6 +101,12 @@ func (s *Service) SaveProfile(profile Profile) error {
 		profile.Items[i].WorkDir = strings.TrimSpace(profile.Items[i].WorkDir)
 		profile.Items[i].Project = strings.TrimSpace(profile.Items[i].Project)
 		profile.Items[i].Target = strings.TrimSpace(profile.Items[i].Target)
+	}
+	if profile.Color == "" {
+		profile.Color = "blue"
+	}
+	if profile.Icon == "" {
+		profile.Icon = "layers"
 	}
 
 	return s.store.AddOrUpdateProfile(profile)
@@ -203,6 +231,9 @@ func (s *Service) ListProfileRuntimeStates(processes []runner.Process) []Profile
 }
 
 func validateProfile(profile Profile) error {
+	if strings.TrimSpace(profile.WorkspaceRoot) == "" {
+		return errors.New("profile workspaceRoot is required")
+	}
 	if profile.Name == "" {
 		return errors.New("profile name is required")
 	}
@@ -219,6 +250,32 @@ func validateProfile(profile Profile) error {
 		}
 	}
 	return nil
+}
+
+func sameWorkspace(a, b string) bool {
+	a = strings.TrimSpace(strings.ToLower(strings.ReplaceAll(a, "\\", "/")))
+	b = strings.TrimSpace(strings.ToLower(strings.ReplaceAll(b, "\\", "/")))
+	if a == "" || b == "" {
+		return false
+	}
+	return a == b
+}
+
+func legacyProfileMatchesWorkspace(profile Profile, workspaceRoot string) bool {
+	if strings.TrimSpace(profile.WorkspaceRoot) != "" {
+		return false
+	}
+	root := strings.TrimSpace(strings.ToLower(strings.ReplaceAll(workspaceRoot, "\\", "/")))
+	if root == "" {
+		return false
+	}
+	for _, item := range profile.Items {
+		workDir := strings.TrimSpace(strings.ToLower(strings.ReplaceAll(item.WorkDir, "\\", "/")))
+		if workDir == root || strings.HasPrefix(workDir, root+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func generateID(prefix string) string {

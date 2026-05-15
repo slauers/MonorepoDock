@@ -15,11 +15,16 @@ import (
 )
 
 type Process struct {
-	ID        string    `json:"id"`
-	Command   string    `json:"command"`
-	WorkDir   string    `json:"workDir"`
-	StartedAt time.Time `json:"startedAt"`
-	Status    string    `json:"status"`
+	ID           string     `json:"id"`
+	Command      string     `json:"command"`
+	WorkDir      string     `json:"workDir"`
+	StartedAt    time.Time  `json:"startedAt"`
+	StoppedAt    *time.Time `json:"stoppedAt,omitempty"`
+	ExitCode     *int       `json:"exitCode,omitempty"`
+	RestartCount int        `json:"restartCount"`
+	LastOutputAt *time.Time `json:"lastOutputAt,omitempty"`
+	HealthStatus string     `json:"healthStatus"`
+	Status       string     `json:"status"`
 }
 
 type LogEntry struct {
@@ -38,6 +43,8 @@ type managedProcess struct {
 	meta   Process
 	cancel context.CancelFunc
 }
+
+const silentThreshold = 5 * time.Minute
 
 func NewManager() *Manager {
 	return &Manager{
@@ -62,12 +69,14 @@ func (m *Manager) Start(
 	procID := fmt.Sprintf("proc-%d", time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(parent)
 	meta := Process{
-		ID:        procID,
-		Command:   command,
-		WorkDir:   workDir,
-		StartedAt: time.Now().UTC(),
-		Status:    "starting",
+		ID:           procID,
+		Command:      command,
+		WorkDir:      workDir,
+		StartedAt:    time.Now().UTC(),
+		RestartCount: m.nextRestartCount(workDir, command),
+		Status:       "starting",
 	}
+	meta.HealthStatus = computeHealth(meta, time.Now().UTC())
 
 	m.mu.Lock()
 	m.processes[procID] = &managedProcess{meta: meta, cancel: cancel}
@@ -102,8 +111,8 @@ func (m *Manager) Start(
 
 	m.updateStatus(procID, "running", onStateChange)
 
-	go m.streamLogs(procID, "stdout", stdout, onLog)
-	go m.streamLogs(procID, "stderr", stderr, onLog)
+	go m.streamLogs(procID, "stdout", stdout, onLog, onStateChange)
+	go m.streamLogs(procID, "stderr", stderr, onLog, onStateChange)
 	go m.wait(cmd, procID, onLog, onStateChange)
 
 	return meta, nil
@@ -121,6 +130,9 @@ func (m *Manager) Stop(processID string, onStateChange func(Process)) error {
 
 	m.mu.Lock()
 	proc.meta.Status = "stopped"
+	now := time.Now().UTC()
+	proc.meta.StoppedAt = &now
+	proc.meta.HealthStatus = computeHealth(proc.meta, now)
 	m.processes[processID] = proc
 	m.mu.Unlock()
 
@@ -137,6 +149,7 @@ func (m *Manager) List() []Process {
 
 	out := make([]Process, 0, len(m.processes))
 	for _, proc := range m.processes {
+		proc.meta.HealthStatus = computeHealth(proc.meta, time.Now().UTC())
 		out = append(out, proc.meta)
 	}
 	return out
@@ -168,10 +181,19 @@ func (m *Manager) wait(cmd *exec.Cmd, processID string, onLog func(LogEntry), on
 	if proc.meta.Status == "running" || proc.meta.Status == "starting" {
 		if waitErr != nil {
 			proc.meta.Status = "failed"
+			if exitErr, ok := waitErr.(*exec.ExitError); ok {
+				code := exitErr.ExitCode()
+				proc.meta.ExitCode = &code
+			}
 		} else {
 			proc.meta.Status = "exited"
+			code := 0
+			proc.meta.ExitCode = &code
 		}
 	}
+	now := time.Now().UTC()
+	proc.meta.StoppedAt = &now
+	proc.meta.HealthStatus = computeHealth(proc.meta, now)
 	m.processes[processID] = proc
 
 	if onStateChange != nil {
@@ -188,18 +210,20 @@ func (m *Manager) wait(cmd *exec.Cmd, processID string, onLog func(LogEntry), on
 	}
 }
 
-func (m *Manager) streamLogs(processID, stream string, reader io.Reader, onLog func(LogEntry)) {
+func (m *Manager) streamLogs(processID, stream string, reader io.Reader, onLog func(LogEntry), onStateChange func(Process)) {
 	if onLog == nil {
 		return
 	}
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
+		now := time.Now().UTC()
+		m.touchOutput(processID, now, onStateChange)
 		onLog(LogEntry{
 			ProcessID: processID,
 			Stream:    stream,
 			Message:   scanner.Text(),
-			Timestamp: time.Now().UTC(),
+			Timestamp: now,
 		})
 	}
 }
@@ -212,12 +236,63 @@ func (m *Manager) updateStatus(processID, status string, onStateChange func(Proc
 		return
 	}
 	proc.meta.Status = status
+	proc.meta.HealthStatus = computeHealth(proc.meta, time.Now().UTC())
 	updated := proc.meta
 	m.processes[processID] = proc
 	m.mu.Unlock()
 
 	if onStateChange != nil {
 		onStateChange(updated)
+	}
+}
+
+func (m *Manager) touchOutput(processID string, at time.Time, onStateChange func(Process)) {
+	m.mu.Lock()
+	proc, ok := m.processes[processID]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	proc.meta.LastOutputAt = &at
+	proc.meta.HealthStatus = computeHealth(proc.meta, at)
+	updated := proc.meta
+	m.processes[processID] = proc
+	m.mu.Unlock()
+	if onStateChange != nil {
+		onStateChange(updated)
+	}
+}
+
+func (m *Manager) nextRestartCount(workDir, command string) int {
+	maxCount := 0
+	for _, proc := range m.processes {
+		if proc.meta.WorkDir == workDir && proc.meta.Command == command && proc.meta.RestartCount >= maxCount {
+			maxCount = proc.meta.RestartCount + 1
+		}
+	}
+	return maxCount
+}
+
+func computeHealth(meta Process, now time.Time) string {
+	switch meta.Status {
+	case "failed":
+		return "failed"
+	case "exited", "stopped":
+		if meta.ExitCode != nil && *meta.ExitCode != 0 {
+			return "failed"
+		}
+		return "stopped"
+	case "running", "starting":
+		base := meta.StartedAt
+		if meta.LastOutputAt != nil {
+			base = *meta.LastOutputAt
+		}
+		if now.Sub(base) > silentThreshold {
+			return "warning"
+		}
+		return "running"
+	default:
+		return "idle"
 	}
 }
 

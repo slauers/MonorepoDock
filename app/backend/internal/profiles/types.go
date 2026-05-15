@@ -3,11 +3,17 @@ package profiles
 import "time"
 
 type Profile struct {
-	ID        string        `json:"id"`
-	Name      string        `json:"name"`
-	CreatedAt time.Time     `json:"createdAt"`
-	UpdatedAt time.Time     `json:"updatedAt"`
-	Items     []ProfileItem `json:"items"`
+	ID             string        `json:"id"`
+	WorkspaceRoot  string        `json:"workspaceRoot"`
+	Name           string        `json:"name"`
+	Description    string        `json:"description"`
+	Color          string        `json:"color"`
+	Icon           string        `json:"icon"`
+	AutoStart      bool          `json:"autoStart"`
+	OpenLogsOnRun  bool          `json:"openLogsOnRun"`
+	CreatedAt      time.Time     `json:"createdAt"`
+	UpdatedAt      time.Time     `json:"updatedAt"`
+	Items          []ProfileItem `json:"items"`
 }
 
 type ProfileItem struct {

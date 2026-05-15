@@ -35,6 +35,11 @@ export type ProcessInfo = {
   command: string;
   workDir: string;
   startedAt: string;
+  stoppedAt?: string;
+  exitCode?: number;
+  restartCount: number;
+  lastOutputAt?: string;
+  healthStatus: "running" | "idle" | "stopped" | "failed" | "warning";
   status: string;
 };
 
@@ -99,7 +104,13 @@ export type ProfileItem = {
 
 export type RunProfile = {
   id: string;
+  workspaceRoot: string;
   name: string;
+  description: string;
+  color: string;
+  icon: string;
+  autoStart: boolean;
+  openLogsOnRun: boolean;
   createdAt: string;
   updatedAt: string;
   items: ProfileItem[];

@@ -50,8 +50,8 @@ export function ListProfileRuntimeStates() {
   return window['go']['main']['App']['ListProfileRuntimeStates']();
 }
 
-export function ListProfiles() {
-  return window['go']['main']['App']['ListProfiles']();
+export function ListProfiles(arg1) {
+  return window['go']['main']['App']['ListProfiles'](arg1);
 }
 
 export function ListRecentWorkspaces() {
