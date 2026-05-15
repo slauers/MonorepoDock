@@ -53,6 +53,7 @@ func (s *Service) Inspect(ctx context.Context, root string) (Summary, error) {
 
 	return Summary{
 		RootPath:       absRoot,
+		RootPaths:      []string{absRoot},
 		PackageManager: detectResult.PackageManager,
 		MonorepoTool:   detectResult.MonorepoTool,
 		GitBranch:      branch,

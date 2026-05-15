@@ -18,11 +18,13 @@ type WorkspaceState = {
   launchingTargetKeys: string[];
   activeLogProcessId: string;
   selectedPath: string;
+  selectedRoots: string[];
   loading: boolean;
   error: string;
   loadRecents: () => Promise<void>;
   chooseWorkspace: () => Promise<void>;
   inspect: (root: string) => Promise<void>;
+  inspectGroup: (groupID: string) => Promise<void>;
   runTarget: (target: Target) => Promise<void>;
   stopProcess: (processId: string) => Promise<void>;
   restartProcess: (processId: string) => Promise<void>;
@@ -50,6 +52,10 @@ function isLabWorkspacePath(path: string): boolean {
   return normalized.includes("/labs/");
 }
 
+function processBelongsToRoots(workDir: string, roots: string[]): boolean {
+  return roots.some((root) => workDir.startsWith(root));
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   summary: null,
   recents: [],
@@ -59,6 +65,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   launchingTargetKeys: [],
   activeLogProcessId: "",
   selectedPath: "",
+  selectedRoots: [],
   loading: false,
   error: "",
   loadRecents: async () => {
@@ -89,10 +96,34 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         summary,
         processes: workspaceProcesses,
         selectedPath: root,
+        selectedRoots: summary.rootPaths && summary.rootPaths.length > 0 ? summary.rootPaths : [root],
         activeLogProcessId: state.activeLogProcessId || (workspaceProcesses[0]?.id ?? ""),
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to inspect workspace";
+      set({ error: message });
+    } finally {
+      set({ loading: false });
+    }
+  },
+  inspectGroup: async (groupID: string) => {
+    try {
+      set({ loading: true, error: "" });
+      const [summary, processes] = await Promise.all([
+        wailsService.inspectGroup(groupID),
+        wailsService.listProcesses(),
+      ]);
+      const roots = summary.rootPaths && summary.rootPaths.length > 0 ? summary.rootPaths : [];
+      const workspaceProcesses = processes.filter((proc) => processBelongsToRoots(proc.workDir, roots));
+      set((state) => ({
+        summary,
+        processes: workspaceProcesses,
+        selectedPath: summary.rootPath,
+        selectedRoots: roots,
+        activeLogProcessId: state.activeLogProcessId || (workspaceProcesses[0]?.id ?? ""),
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to inspect group";
       set({ error: message });
     } finally {
       set({ loading: false });
@@ -132,7 +163,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   findRunningProcessForTarget: (target: Target) => {
     return get().processes.find(
       (proc) =>
-        proc.workDir === target.workDir && proc.command === target.command && proc.status === "running",
+        proc.workDir === target.workDir &&
+        proc.command === target.command &&
+        (proc.status === "running" || proc.status === "starting"),
     );
   },
   isTargetBusy: (target: Target) => {
@@ -183,12 +216,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   bindEvents: () => {
     wailsService.onLog((payload) => {
       const entry = payload as LogEntry;
-      const activeWorkspace = get().selectedPath;
-      if (!activeWorkspace) {
+      const roots = get().selectedRoots;
+      if (!roots.length) {
         return;
       }
       const process = get().processes.find((proc) => proc.id === entry.processId);
-      if (!process || !process.workDir.startsWith(activeWorkspace)) {
+      if (!process || !processBelongsToRoots(process.workDir, roots)) {
         return;
       }
       set((state) => ({
@@ -199,8 +232,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     wailsService.onProcessUpdated((payload) => {
       const proc = payload as ProcessInfo;
-      const activeWorkspace = get().selectedPath;
-      if (!activeWorkspace || !proc.workDir.startsWith(activeWorkspace)) {
+      const roots = get().selectedRoots;
+      if (!roots.length || !processBelongsToRoots(proc.workDir, roots)) {
         return;
       }
       set((state) => ({

@@ -4,6 +4,7 @@ import {analyzer} from '../models';
 import {session} from '../models';
 import {profiles} from '../models';
 import {workspace} from '../models';
+import {groups} from '../models';
 import {runner} from '../models';
 import {config} from '../models';
 
@@ -11,13 +12,19 @@ export function AnalyzeWorkspace(arg1:string):Promise<analyzer.Report>;
 
 export function CloseApp():Promise<void>;
 
+export function DeleteGroup(arg1:string):Promise<void>;
+
 export function DeleteProfile(arg1:string):Promise<void>;
 
 export function GetLastRuntimeSession(arg1:string):Promise<session.RuntimeSession>;
 
 export function GetProfileRuntimeState(arg1:string):Promise<profiles.ProfileRuntimeState>;
 
+export function InspectGroup(arg1:string):Promise<workspace.Summary>;
+
 export function InspectWorkspace(arg1:string):Promise<workspace.Summary>;
+
+export function ListGroups():Promise<Array<groups.Group>>;
 
 export function ListProcesses():Promise<Array<runner.Process>>;
 
@@ -26,6 +33,8 @@ export function ListProfileRuntimeStates():Promise<Array<profiles.ProfileRuntime
 export function ListProfiles():Promise<Array<profiles.Profile>>;
 
 export function ListRecentWorkspaces():Promise<Array<config.RecentWorkspace>>;
+
+export function OpenGroupRootsDialog():Promise<Array<string>>;
 
 export function OpenWorkspaceDialog():Promise<string>;
 
@@ -36,6 +45,8 @@ export function RestoreRuntimeSession(arg1:string):Promise<Array<runner.Process>
 export function RunCommand(arg1:string,arg2:string):Promise<runner.Process>;
 
 export function RunProfile(arg1:string):Promise<Array<runner.Process>>;
+
+export function SaveGroup(arg1:groups.Group):Promise<void>;
 
 export function SaveProfile(arg1:profiles.Profile):Promise<void>;
 
