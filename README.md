@@ -2,7 +2,7 @@
 
 ## GitHub Pages
 
-https://slauers.github.io/MonorepoDock/
+https://slauers.github.io/monodock/
 
 MonoDock is a visual desktop runtime for monorepos.  
 It is designed to feel like Docker Desktop for workspace operations: detect projects, run targets, manage processes, and inspect logs in one place.
@@ -52,8 +52,8 @@ Sample monorepos for testing are available under `labs/`:
 
 Project page and screenshots:
 
-- https://slauers.github.io/MonorepoDock/
-- https://slauers.github.io/MonorepoDock/screenshots.html
+- https://slauers.github.io/monodock/
+- https://slauers.github.io/monodock/screenshots.html
 
 ## Release Pipeline
 

@@ -275,6 +275,13 @@ export default function App() {
     }
   };
 
+  const refreshProfileStates = async () => {
+    const runtimeStates = await wailsService.listProfileRuntimeStates();
+    const indexed: Record<string, ProfileRuntimeState> = {};
+    for (const state of runtimeStates) indexed[state.profileID] = state;
+    setProfileStates(indexed);
+  };
+
   const loadGroups = async () => {
     const items = await wailsService.listGroups();
     setGroups(items);
@@ -289,6 +296,10 @@ export default function App() {
   useEffect(() => {
     void loadProfiles();
   }, [selectedPath]);
+
+  useEffect(() => {
+    void refreshProfileStates();
+  }, [processes, selectedPath]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("monodock-theme");
@@ -811,7 +822,7 @@ export default function App() {
               <span>{t("runProfiles", locale).toUpperCase()}</span>
             </button>
             {showRunProfiles && (
-              <div className="profiles-block">
+              <div className="profiles-block run-profiles-block">
             <div className="profiles-scroll">
               {profileLoading && <div className="profiles-empty">Loading...</div>}
               {!profileLoading && visibleProfiles.length === 0 && (
@@ -821,7 +832,7 @@ export default function App() {
                 </div>
               )}
               {!profileLoading && visibleProfiles.length > 0 && (
-                <ul className="profiles-list">
+                <ul className="profiles-list run-profiles-list">
                   {visibleProfiles.map((profile) => (
                     <li key={profile.id} className="profile-item">
                     <div className="profile-meta">
