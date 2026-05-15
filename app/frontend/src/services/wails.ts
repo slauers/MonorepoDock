@@ -20,7 +20,7 @@ declare global {
           AnalyzeWorkspace: (root: string) => Promise<AnalysisReport>;
           AnalyzeAffected: (root: string) => Promise<AffectedReport>;
           CloseApp: () => Promise<void>;
-          ListProfiles: () => Promise<RunProfile[]>;
+          ListProfiles: (workspaceRoot: string) => Promise<RunProfile[]>;
           SaveProfile: (profile: RunProfile) => Promise<void>;
           DeleteProfile: (profileID: string) => Promise<void>;
           RunProfile: (profileID: string) => Promise<ProcessInfo[]>;
@@ -62,7 +62,7 @@ export const wailsService = {
   analyzeWorkspace: (root: string) => appApi().AnalyzeWorkspace(root),
   analyzeAffected: (root: string) => appApi().AnalyzeAffected(root),
   closeApp: () => appApi().CloseApp(),
-  listProfiles: () => appApi().ListProfiles(),
+  listProfiles: (workspaceRoot: string) => appApi().ListProfiles(workspaceRoot),
   saveProfile: (profile: RunProfile) => appApi().SaveProfile(profile),
   deleteProfile: (profileID: string) => appApi().DeleteProfile(profileID),
   runProfile: (profileID: string) => appApi().RunProfile(profileID),

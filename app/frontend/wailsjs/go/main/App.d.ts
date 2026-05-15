@@ -33,7 +33,7 @@ export function ListProcesses():Promise<Array<runner.Process>>;
 
 export function ListProfileRuntimeStates():Promise<Array<profiles.ProfileRuntimeState>>;
 
-export function ListProfiles():Promise<Array<profiles.Profile>>;
+export function ListProfiles(arg1:string):Promise<Array<profiles.Profile>>;
 
 export function ListRecentWorkspaces():Promise<Array<config.RecentWorkspace>>;
 

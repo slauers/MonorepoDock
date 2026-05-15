@@ -269,7 +269,13 @@ export namespace profiles {
 	}
 	export class Profile {
 	    id: string;
+	    workspaceRoot: string;
 	    name: string;
+	    description: string;
+	    color: string;
+	    icon: string;
+	    autoStart: boolean;
+	    openLogsOnRun: boolean;
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -283,7 +289,13 @@ export namespace profiles {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
+	        this.workspaceRoot = source["workspaceRoot"];
 	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.color = source["color"];
+	        this.icon = source["icon"];
+	        this.autoStart = source["autoStart"];
+	        this.openLogsOnRun = source["openLogsOnRun"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	        this.items = this.convertValues(source["items"], ProfileItem);
@@ -341,6 +353,13 @@ export namespace runner {
 	    workDir: string;
 	    // Go type: time
 	    startedAt: any;
+	    // Go type: time
+	    stoppedAt?: any;
+	    exitCode?: number;
+	    restartCount: number;
+	    // Go type: time
+	    lastOutputAt?: any;
+	    healthStatus: string;
 	    status: string;
 	
 	    static createFrom(source: any = {}) {
@@ -353,6 +372,11 @@ export namespace runner {
 	        this.command = source["command"];
 	        this.workDir = source["workDir"];
 	        this.startedAt = this.convertValues(source["startedAt"], null);
+	        this.stoppedAt = this.convertValues(source["stoppedAt"], null);
+	        this.exitCode = source["exitCode"];
+	        this.restartCount = source["restartCount"];
+	        this.lastOutputAt = this.convertValues(source["lastOutputAt"], null);
+	        this.healthStatus = source["healthStatus"];
 	        this.status = source["status"];
 	    }
 	

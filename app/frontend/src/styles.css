@@ -211,6 +211,21 @@ body {
   gap: 10px;
 }
 
+.sidebar-toggle-btn {
+  --wails-draggable: no-drag;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #f2f7ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
 .window-close-btn {
   --wails-draggable: no-drag;
   width: 28px;
@@ -246,7 +261,8 @@ body {
 }
 
 .window-close-btn:hover,
-.header-refresh-btn:hover {
+.header-refresh-btn:hover,
+.sidebar-toggle-btn:hover {
   background: #ffffff;
   color: #0d2f6e;
 }
@@ -311,9 +327,19 @@ body {
 }
 
 .body-layout {
+  position: relative;
   min-height: 0;
   display: grid;
   grid-template-columns: 220px 1fr;
+  transition: grid-template-columns 150ms ease;
+}
+
+.docker-shell.sidebar-collapsed .body-layout {
+  grid-template-columns: 0 1fr;
+}
+
+.docker-shell.sidebar-collapsed .content-area {
+  padding-left: 52px;
 }
 
 .app-footer {
@@ -397,6 +423,42 @@ body {
   grid-template-rows: auto auto minmax(80px, auto) minmax(80px, auto) minmax(120px, 1fr);
   gap: 7px;
   min-height: 0;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.side-nav.collapsed {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+  border-right-color: transparent;
+}
+
+.sidebar-restore-fab {
+  --wails-draggable: no-drag;
+  position: absolute;
+  top: 12px;
+  left: 10px;
+  z-index: 6;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #2a3f60;
+  border-radius: 999px;
+  background: #152846;
+  color: #d6e5fb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.sidebar-restore-fab:hover {
+  background: #ffffff;
+  color: #0d2f6e;
+  border-color: #ffffff;
 }
 
 .sidebar-section {
@@ -566,6 +628,13 @@ body {
   min-width: 0;
 }
 
+.profile-description {
+  margin-top: 3px;
+  font-size: 10px;
+  color: #89a0c2;
+  line-height: 1.3;
+}
+
 .profile-name {
   color: #d5e1f3;
   font-size: 12px;
@@ -616,7 +685,8 @@ body {
 
 .profile-run-btn,
 .profile-stop-btn,
-.profile-delete-btn {
+.profile-delete-btn,
+.profile-menu-btn {
   height: 22px;
   border-radius: 6px;
   border: 1px solid #2a3f60;
@@ -647,6 +717,12 @@ body {
 }
 
 .profile-delete-btn {
+  width: 22px;
+  justify-content: center;
+  color: #98abc7;
+}
+
+.profile-menu-btn {
   width: 22px;
   justify-content: center;
   color: #98abc7;
@@ -700,6 +776,10 @@ body {
   background: #e2b247;
 }
 
+.runtime-dot.warning {
+  background: #e2b247;
+}
+
 .runtime-dot.failed {
   background: #ef6f6f;
 }
@@ -720,6 +800,10 @@ body {
 }
 
 .runtime-status.partial {
+  color: #f0c16a;
+}
+
+.runtime-status.warning {
   color: #f0c16a;
 }
 
@@ -811,6 +895,10 @@ body {
   border-bottom-color: #223652;
 }
 
+.profile-popover-btn.danger {
+  color: #ff9999;
+}
+
 .profile-popover-btn:hover {
   background: rgba(132, 184, 255, 0.1);
 }
@@ -834,6 +922,13 @@ body {
 .profile-popover-empty {
   color: #90a6c3;
   font-size: 11px;
+}
+
+.profile-menu-popover {
+  border: 1px solid #2b4367;
+  border-radius: 8px;
+  background: #0f1d33;
+  overflow: hidden;
 }
 
 .content-area {
@@ -1577,7 +1672,8 @@ pre {
 
 .theme-light .profile-run-btn,
 .theme-light .profile-stop-btn,
-.theme-light .profile-delete-btn {
+.theme-light .profile-delete-btn,
+.theme-light .profile-menu-btn {
   border-color: #c8d7ea;
   background: #ffffff;
   color: #3a4d65;
@@ -1607,6 +1703,11 @@ pre {
 }
 
 .theme-light .profile-popover {
+  border-color: #dbe3ef;
+  background: #ffffff;
+}
+
+.theme-light .profile-menu-popover {
   border-color: #dbe3ef;
   background: #ffffff;
 }
@@ -1657,6 +1758,7 @@ pre {
 }
 
 .theme-light .header-refresh-btn { color: #ffffff; }
+.theme-light .sidebar-toggle-btn { color: #ffffff; }
 
 .theme-light .window-close-btn { color: #ffffff; }
 
@@ -2002,7 +2104,18 @@ pre {
   color: #86ff86;
 }
 
+.theme-hacker .sidebar-toggle-btn {
+  color: #86ff86;
+}
+
 .theme-hacker .window-close-btn { color: #86ff86; }
+
+.theme-hacker .sidebar-restore-fab {
+  border-color: #2f7f2f;
+  background: #000000;
+  color: #86ff86;
+  border-radius: 0;
+}
 
 
 .theme-hacker h1,
