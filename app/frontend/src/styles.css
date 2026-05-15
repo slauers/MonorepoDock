@@ -419,8 +419,9 @@ body {
   border-right: 1px solid #1f2f49;
   background: #0f1a2c;
   padding: 9px 8px;
-  display: grid;
-  grid-template-rows: auto auto minmax(80px, auto) minmax(80px, auto) minmax(120px, 1fr);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 7px;
   min-height: 0;
   overflow: hidden;
@@ -464,8 +465,8 @@ body {
 .sidebar-section {
   border-top: 1px solid #223652;
   padding-top: 6px;
-  min-height: 0;
-  display: grid;
+  min-height: auto;
+  display: block;
   gap: 6px;
 }
 
@@ -550,17 +551,15 @@ body {
 }
 
 .recent-block {
-  min-height: 110px;
-  display: grid;
-  grid-template-rows: 1fr;
   min-height: 0;
+  display: block;
 }
 
 .recent-list {
   margin: 0;
   padding: 0;
   list-style: none;
-  overflow: auto;
+  overflow: hidden;
   display: grid;
   gap: 5px;
   align-content: start;
@@ -587,11 +586,9 @@ body {
 .profiles-block {
   border-top: 0;
   padding-top: 0;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 5px;
+  display: block;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .profiles-list {
@@ -605,9 +602,29 @@ body {
   min-height: 0;
 }
 
+.run-profiles-block {
+  padding-left: 10px;
+  display: block;
+  min-height: 0;
+}
+
+.run-profiles-list .profile-item {
+  padding-left: 8px;
+}
+
+.run-profiles-block .profiles-scroll {
+  display: block;
+  overflow: visible;
+}
+
+.run-profiles-list {
+  display: grid;
+  align-content: start;
+}
+
 .profiles-scroll {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .profile-item {
