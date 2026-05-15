@@ -69,6 +69,26 @@ export type AnalysisReport = {
   findings: AnalysisFinding[];
 };
 
+export type ChangedFile = {
+  path: string;
+  status: string;
+};
+
+export type AffectedProject = {
+  name: string;
+  root: string;
+  changedFiles: ChangedFile[];
+};
+
+export type AffectedReport = {
+  workspaceRoot: string;
+  changedFiles: ChangedFile[];
+  projects: AffectedProject[];
+  generatedAt: string;
+  notGitRepository: boolean;
+  message: string;
+};
+
 export type ProfileItem = {
   id: string;
   project: string;

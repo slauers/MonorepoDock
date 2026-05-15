@@ -65,6 +65,12 @@ const en = {
   restore: "Restore",
   ignore: "Ignore",
   restoredProcesses: "processes restored",
+  analyzeAffected: "Analyze affected",
+  affectedProjects: "Affected Projects",
+  changedFiles: "Changed files",
+  affectedEmpty: "No local changes detected",
+  notGitRepo: "This workspace is not a Git repository",
+  analyzingChangedFiles: "Analyzing changed files...",
 } as const;
 
 const pt = {
@@ -132,6 +138,12 @@ const pt = {
   restore: "Restaurar",
   ignore: "Ignorar",
   restoredProcesses: "processos restaurados",
+  analyzeAffected: "Analisar afetados",
+  affectedProjects: "Projetos afetados",
+  changedFiles: "Arquivos alterados",
+  affectedEmpty: "Nenhuma alteração local detectada",
+  notGitRepo: "Este workspace não é um repositório Git",
+  analyzingChangedFiles: "Analisando arquivos alterados...",
 } as const;
 
 export function getLocale(): Locale {
