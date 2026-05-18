@@ -16,6 +16,8 @@ type WorkspaceState = {
   processes: ProcessInfo[];
   logs: LogEntry[];
   analysis: AnalysisReport | null;
+  analysisLoading: boolean;
+  analysisError: string;
   affected: AffectedReport | null;
   affectedLoading: boolean;
   affectedError: string;
@@ -67,6 +69,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   processes: [],
   logs: [],
   analysis: null,
+  analysisLoading: false,
+  analysisError: "",
   affected: null,
   affectedLoading: false,
   affectedError: "",
@@ -255,8 +259,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (!root) {
       return;
     }
-    const report = await wailsService.analyzeWorkspace(root);
-    set({ analysis: report });
+    try {
+      set({ analysisLoading: true, analysisError: "" });
+      const report = await wailsService.analyzeWorkspace(root);
+      set({ analysis: report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to analyze workspace";
+      set({ analysisError: message });
+    } finally {
+      set({ analysisLoading: false });
+    }
   },
   analyzeAffected: async () => {
     const root = get().selectedPath;
