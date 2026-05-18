@@ -46,8 +46,10 @@ func (s *Service) GetChangedFiles(ctx context.Context, root string) ([]ChangedFi
 	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	cmd := cmdutil.CommandContext(timeoutCtx, "git status --porcelain")
-	cmd.Dir = root
+	cmd := cmdutil.CommandContext(timeoutCtx, root, "git status --porcelain")
+	if cmdutil.ShouldSetCommandDir(root) {
+		cmd.Dir = root
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		text := strings.ToLower(string(out) + " " + err.Error())

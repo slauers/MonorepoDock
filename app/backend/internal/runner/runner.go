@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ type Process struct {
 	ID           string     `json:"id"`
 	Command      string     `json:"command"`
 	WorkDir      string     `json:"workDir"`
+	PID          int        `json:"pid"`
 	StartedAt    time.Time  `json:"startedAt"`
 	StoppedAt    *time.Time `json:"stoppedAt,omitempty"`
 	ExitCode     *int       `json:"exitCode,omitempty"`
@@ -46,6 +48,8 @@ type managedProcess struct {
 
 const silentThreshold = 5 * time.Minute
 
+var ansiEscapePattern = regexp.MustCompile(`\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))`)
+
 func NewManager() *Manager {
 	return &Manager{
 		processes: make(map[string]*managedProcess),
@@ -64,6 +68,10 @@ func (m *Manager) Start(
 	}
 	if strings.TrimSpace(command) == "" {
 		return Process{}, errors.New("command is required")
+	}
+
+	if existing, ok := m.activeProcess(workDir, command); ok {
+		return existing, nil
 	}
 
 	procID := fmt.Sprintf("proc-%d", time.Now().UnixNano())
@@ -86,9 +94,19 @@ func (m *Manager) Start(
 		onStateChange(meta)
 	}
 
-	cmd := cmdutil.CommandContext(ctx, command)
+	cmd := cmdutil.CommandContext(ctx, workDir, command)
 	cmdutil.ConfigureForBackground(cmd)
-	cmd.Dir = workDir
+	if cmdutil.ShouldSetCommandDir(workDir) {
+		cmd.Dir = workDir
+	}
+	if onLog != nil {
+		onLog(LogEntry{
+			ProcessID: procID,
+			Stream:    "system",
+			Message:   "launch: " + strings.Join(cmd.Args, " ") + " | dir: " + cmd.Dir,
+			Timestamp: time.Now().UTC(),
+		})
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -104,10 +122,26 @@ func (m *Manager) Start(
 	}
 
 	if err := cmd.Start(); err != nil {
+		if onLog != nil {
+			onLog(LogEntry{
+				ProcessID: procID,
+				Stream:    "stderr",
+				Message:   "start error: " + err.Error(),
+				Timestamp: time.Now().UTC(),
+			})
+		}
 		cancel()
 		m.updateStatus(procID, "failed", onStateChange)
 		return Process{}, err
 	}
+
+	m.mu.Lock()
+	if proc, ok := m.processes[procID]; ok && cmd.Process != nil {
+		proc.meta.PID = cmd.Process.Pid
+		m.processes[procID] = proc
+		meta = proc.meta
+	}
+	m.mu.Unlock()
 
 	m.updateStatus(procID, "running", onStateChange)
 
@@ -222,10 +256,14 @@ func (m *Manager) streamLogs(processID, stream string, reader io.Reader, onLog f
 		onLog(LogEntry{
 			ProcessID: processID,
 			Stream:    stream,
-			Message:   scanner.Text(),
+			Message:   cleanLogLine(scanner.Text()),
 			Timestamp: now,
 		})
 	}
+}
+
+func cleanLogLine(line string) string {
+	return ansiEscapePattern.ReplaceAllString(line, "")
 }
 
 func (m *Manager) updateStatus(processID, status string, onStateChange func(Process)) {
@@ -271,6 +309,21 @@ func (m *Manager) nextRestartCount(workDir, command string) int {
 		}
 	}
 	return maxCount
+}
+
+func (m *Manager) activeProcess(workDir, command string) (Process, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, proc := range m.processes {
+		if proc.meta.WorkDir == workDir &&
+			proc.meta.Command == command &&
+			(proc.meta.Status == "running" || proc.meta.Status == "starting") {
+			proc.meta.HealthStatus = computeHealth(proc.meta, time.Now().UTC())
+			return proc.meta, true
+		}
+	}
+	return Process{}, false
 }
 
 func computeHealth(meta Process, now time.Time) string {

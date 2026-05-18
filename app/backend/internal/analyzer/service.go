@@ -329,7 +329,7 @@ func buildLogFinding(id string, bin string, args []string, runErr error, output 
 	}
 	details := fmt.Sprintf("command: %s %s | status: %s", bin, strings.Join(args, " "), status)
 	if output != "" {
-		details += " | output: " + formatOutputForLog(output, 900)
+		details += " | output: " + formatOutputForLog(output, 20000)
 	}
 	if runErr != nil {
 		details += " | error: " + runErr.Error()

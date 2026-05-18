@@ -12,6 +12,7 @@ import (
 	"monodock/backend/internal/analyzer"
 	"monodock/backend/internal/config"
 	"monodock/backend/internal/groups"
+	"monodock/backend/internal/ports"
 	"monodock/backend/internal/profiles"
 	"monodock/backend/internal/runner"
 	"monodock/backend/internal/session"
@@ -26,6 +27,7 @@ type App struct {
 	groups          *groups.Service
 	analyzer        *analyzer.Service
 	affected        *affected.Service
+	ports           *ports.Service
 	profiles        *profiles.Service
 	processes       *runner.Manager
 	recentStore     *config.Store
@@ -62,6 +64,7 @@ func NewApp() (*App, error) {
 		groups:       groupsSvc,
 		analyzer:     analyzer.NewService(),
 		affected:     affected.NewService(),
+		ports:        ports.NewService(),
 		profiles:     profilesSvc,
 		processes:    runner.NewManager(),
 		recentStore:  store,
@@ -200,6 +203,29 @@ func (a *App) RunCommand(workDir, command string) (runner.Process, error) {
 
 	runtime.EventsEmit(a.ctx, "process:started", proc)
 	return proc, nil
+}
+
+func (a *App) CheckPortConflicts(workDir, command string) (ports.Report, error) {
+	if a.ctx == nil {
+		return ports.Report{}, errors.New("application context is not ready")
+	}
+	report, err := a.ports.Check(a.ctx, workDir, command)
+	if err != nil {
+		return ports.Report{}, err
+	}
+	a.markManagedPortConflicts(&report)
+	return report, nil
+}
+
+func (a *App) CommandWithPort(workDir, command string, port int) (string, error) {
+	return a.ports.CommandWithPort(workDir, command, port)
+}
+
+func (a *App) StopPortProcess(workDir string, pid int, managedProcessID string) error {
+	if strings.TrimSpace(managedProcessID) != "" {
+		return a.StopCommand(managedProcessID)
+	}
+	return a.ports.StopPortProcess(a.ctx, workDir, pid)
 }
 
 func (a *App) StopCommand(processID string) error {
@@ -421,6 +447,29 @@ func (a *App) saveWorkspaceRuntimeSession(root string) {
 		UpdatedAt:     time.Now().UTC(),
 		Items:         items,
 	})
+}
+
+func (a *App) markManagedPortConflicts(report *ports.Report) {
+	if report == nil || len(report.Conflicts) == 0 {
+		return
+	}
+	processes := a.processes.List()
+	for i := range report.Conflicts {
+		for _, proc := range processes {
+			if proc.PID == 0 || proc.PID != report.Conflicts[i].PID {
+				continue
+			}
+			if proc.Status != "running" && proc.Status != "starting" {
+				continue
+			}
+			report.Conflicts[i].Managed = true
+			report.Conflicts[i].ManagedProcessID = proc.ID
+			if report.Conflicts[i].Command == "" {
+				report.Conflicts[i].Command = proc.Command
+			}
+			break
+		}
+	}
 }
 
 func (a *App) resolveProjectAndTarget(workDir string, command string) (string, string) {

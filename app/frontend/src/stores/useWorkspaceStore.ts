@@ -16,6 +16,8 @@ type WorkspaceState = {
   processes: ProcessInfo[];
   logs: LogEntry[];
   analysis: AnalysisReport | null;
+  analysisLoading: boolean;
+  analysisError: string;
   affected: AffectedReport | null;
   affectedLoading: boolean;
   affectedError: string;
@@ -29,7 +31,7 @@ type WorkspaceState = {
   chooseWorkspace: () => Promise<void>;
   inspect: (root: string) => Promise<void>;
   inspectGroup: (groupID: string) => Promise<void>;
-  runTarget: (target: Target) => Promise<void>;
+  runTarget: (target: Target, commandOverride?: string) => Promise<void>;
   stopProcess: (processId: string) => Promise<void>;
   restartProcess: (processId: string) => Promise<void>;
   setActiveLogProcess: (processId: string) => void;
@@ -67,6 +69,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   processes: [],
   logs: [],
   analysis: null,
+  analysisLoading: false,
+  analysisError: "",
   affected: null,
   affectedLoading: false,
   affectedError: "",
@@ -137,16 +141,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({ loading: false });
     }
   },
-  runTarget: async (target: Target) => {
-    const key = `${target.workDir}::${target.command}`;
-    const busy = get().isTargetBusy(target);
+  runTarget: async (target: Target, commandOverride?: string) => {
+    const command = commandOverride?.trim() || target.command;
+    const key = `${target.workDir}::${command}`;
+    const busy = !commandOverride && get().isTargetBusy(target);
     if (busy) {
       return;
     }
 
     set((state) => ({ launchingTargetKeys: [...state.launchingTargetKeys, key] }));
     try {
-      const process = await wailsService.runCommand(target.workDir, target.command);
+      const process = await wailsService.runCommand(target.workDir, command);
       set((state) => ({
         processes: upsertProcess(state.processes, process),
         activeLogProcessId: process.id,
@@ -254,8 +259,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (!root) {
       return;
     }
-    const report = await wailsService.analyzeWorkspace(root);
-    set({ analysis: report });
+    try {
+      set({ analysisLoading: true, analysisError: "" });
+      const report = await wailsService.analyzeWorkspace(root);
+      set({ analysis: report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to analyze workspace";
+      set({ analysisError: message });
+    } finally {
+      set({ analysisLoading: false });
+    }
   },
   analyzeAffected: async () => {
     const root = get().selectedPath;

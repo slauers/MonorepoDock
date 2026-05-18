@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
-import type { ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
+import type { PortCheckReport, ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
 import { getLocale, t } from "./i18n";
 import { wailsService } from "./services/wails";
 
@@ -15,7 +15,37 @@ const ICON = {
   copy: "\u29C9",
   close: "\u00D7",
   plus: "+",
+  custom: ">_",
+  chevronDown: "\u25BE",
+  chevronRight: "\u25B8",
+  ellipsis: "\u22EF",
 };
+
+type PendingPortDecision = {
+  target: Target;
+  report: PortCheckReport;
+};
+
+type VisualStatus = "idle" | "starting" | "running" | "success" | "failed" | "stopped" | "warning" | "partial";
+
+function StatusIndicator({
+  status,
+  label,
+  title,
+  compact = false,
+}: {
+  status: VisualStatus;
+  label?: string;
+  title?: string;
+  compact?: boolean;
+}) {
+  return (
+    <span className={`status-indicator ${compact ? "compact" : ""}`} title={title || label}>
+      <span className={`status-dot ${status}`} aria-hidden />
+      {label && <span className={`status-indicator-label ${status}`}>{label}</span>}
+    </span>
+  );
+}
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -151,6 +181,28 @@ function processHealthDetails(process: ProcessInfo): string {
   return "Idle";
 }
 
+function processRuntimeSummary(process: ProcessInfo): string {
+  const health = processHealth(process);
+  const parts: string[] = [];
+
+  if (health === "failed") {
+    parts.push(process.exitCode !== undefined ? `failed · exit ${process.exitCode}` : "failed");
+  } else if (health === "warning") {
+    parts.push(`warning · silent ${formatUptime(process.lastOutputAt || process.startedAt)}`);
+  } else if (health === "running") {
+    parts.push(`running · ${formatUptime(process.startedAt)}`);
+  } else if (health === "stopped") {
+    parts.push(`stopped · ${formatUptime(process.startedAt)}`);
+  } else {
+    parts.push("idle");
+  }
+
+  if (process.restartCount > 0) {
+    parts.push(`r${process.restartCount}`);
+  }
+  return parts.join(" · ");
+}
+
 function severityRank(severity: string): number {
   switch (severity.toLowerCase()) {
     case "critical":
@@ -213,6 +265,8 @@ export default function App() {
     processes,
     logs,
     analysis,
+    analysisLoading,
+    analysisError,
     affected,
     affectedLoading,
     affectedError,
@@ -260,6 +314,10 @@ export default function App() {
   const [stoppingProfileIDs, setStoppingProfileIDs] = useState<string[]>([]);
   const [activeProfileMenuID, setActiveProfileMenuID] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [copyNotice, setCopyNotice] = useState("");
+  const [pendingPortDecision, setPendingPortDecision] = useState<PendingPortDecision | null>(null);
+  const [alternatePort, setAlternatePort] = useState("");
+  const [portActionLoading, setPortActionLoading] = useState(false);
 
   const loadProfiles = async () => {
     try {
@@ -373,6 +431,23 @@ export default function App() {
     return joined.includes(q);
   });
 
+  const pageTitle = (() => {
+    if (view === "processes") return t("processes", locale);
+    if (view === "logs") return t("logs", locale);
+    if (view === "analyze") return t("analyze", locale);
+    return t("targets", locale);
+  })();
+
+  const pageSubtitle = (() => {
+    if (view === "processes") return `${processes.length} ${processes.length === 1 ? t("processSingular", locale) : t("processPlural", locale)}`;
+    if (view === "logs") {
+      const active = processes.find((proc) => proc.id === activeLogProcessId);
+      return active ? processHealthDetails(active) : t("selectLogTab", locale);
+    }
+    if (view === "analyze") return selectedPath || t("noWorkspaceSelected", locale);
+    return selectedPath || t("noWorkspaceSelected", locale);
+  })();
+
   const visibleLogs = logs.filter((entry) => entry.processId === activeLogProcessId);
   const orderedFindings = useMemo(() => {
     const items = [...(analysis?.findings ?? [])];
@@ -408,6 +483,8 @@ export default function App() {
     try {
       await navigator.clipboard.writeText(value);
       setCopiedKey(key);
+      setCopyNotice("Copied to clipboard");
+      window.setTimeout(() => setCopyNotice(""), 1200);
       window.setTimeout(() => setCopiedKey((current) => (current === key ? "" : current)), 1500);
     } catch {
       setCopiedKey("");
@@ -423,6 +500,73 @@ export default function App() {
     setClosedLogTabs((state) => state.filter((id) => id !== processId));
     setActiveLogProcess(processId);
     setView("logs");
+  };
+
+  const runTargetWithPortGuard = async (target: Target) => {
+    try {
+      const report = await wailsService.checkPortConflicts(target.workDir, target.command);
+      if (report.conflicts.length > 0) {
+        const suggested = report.suggestedPort || (report.conflicts[0]?.port ?? 3000) + 1;
+        setAlternatePort(String(suggested));
+        setPendingPortDecision({ target, report });
+        return;
+      }
+    } catch {
+      setRestoreMessage("Port check unavailable. Starting command...");
+      window.setTimeout(() => setRestoreMessage(""), 2000);
+    }
+    await runTarget(target);
+  };
+
+  const stopConflictsAndRun = async () => {
+    if (!pendingPortDecision) return;
+    setPortActionLoading(true);
+    try {
+      for (const conflict of pendingPortDecision.report.conflicts) {
+        await wailsService.stopPortProcess(
+          pendingPortDecision.target.workDir,
+          conflict.pid,
+          conflict.managedProcessID || "",
+        );
+      }
+      await runTarget(pendingPortDecision.target);
+      setPendingPortDecision(null);
+      setAlternatePort("");
+    } finally {
+      setPortActionLoading(false);
+    }
+  };
+
+  const runOnAnotherPort = async () => {
+    if (!pendingPortDecision) return;
+    const port = Number(alternatePort);
+    if (!alternatePort || !Number.isInteger(port) || port <= 0 || port > 65535) return;
+    setPortActionLoading(true);
+    try {
+      const command = await wailsService.commandWithPort(
+        pendingPortDecision.target.workDir,
+        pendingPortDecision.target.command,
+        port,
+      );
+      await runTarget(pendingPortDecision.target, command);
+      setPendingPortDecision(null);
+      setAlternatePort("");
+    } finally {
+      setPortActionLoading(false);
+    }
+  };
+
+  const runCustomCommand = async (workDir: string, suggested: string) => {
+    const raw = window.prompt("Run custom command", suggested);
+    const command = raw?.trim() ?? "";
+    if (!command) return;
+    await runTargetWithPortGuard({
+      id: `custom:${workDir}:${command}`,
+      name: command,
+      command,
+      workDir,
+      kind: "custom",
+    });
   };
 
   const runProfile = async (profileId: string) => {
@@ -496,7 +640,7 @@ export default function App() {
     return parts.join(" • ");
   };
 
-  const profileItemStatus = (state: ProfileRuntimeState | undefined, item: ProfileItem) => {
+  const profileItemStatus = (state: ProfileRuntimeState | undefined, item: ProfileItem): VisualStatus => {
     if (!state) return "idle";
     const processByID = new Map(processes.map((proc) => [proc.id, proc]));
     const matchedIDs = state.processIDs.filter((id) => {
@@ -661,6 +805,9 @@ export default function App() {
     await loadGroups();
   };
 
+  const alternatePortNumber = Number(alternatePort);
+  const alternatePortValid = alternatePort !== "" && Number.isInteger(alternatePortNumber) && alternatePortNumber > 0 && alternatePortNumber <= 65535;
+
   return (
     <>
       {/* Splash disabled for now; we will redesign and enable it later.
@@ -768,7 +915,7 @@ export default function App() {
           </div>
           <div className="sidebar-section">
             <button className="section-header" onClick={() => setShowRecents((v) => !v)}>
-              <span>{showRecents ? "▾" : "▸"}</span>
+              <span>{showRecents ? ICON.chevronDown : ICON.chevronRight}</span>
               <span>{t("recents", locale).toUpperCase()}</span>
             </button>
             {showRecents && (
@@ -787,7 +934,7 @@ export default function App() {
           </div>
           <div className="sidebar-section">
             <button className="section-header" onClick={() => setShowGroups((v) => !v)}>
-              <span>{showGroups ? "▾" : "▸"}</span>
+              <span>{showGroups ? ICON.chevronDown : ICON.chevronRight}</span>
               <span>GROUPS</span>
             </button>
             {showGroups && (
@@ -818,7 +965,7 @@ export default function App() {
           </div>
           <div className="sidebar-section">
             <button className="section-header" onClick={() => setShowRunProfiles((v) => !v)}>
-              <span>{showRunProfiles ? "▾" : "▸"}</span>
+              <span>{showRunProfiles ? ICON.chevronDown : ICON.chevronRight}</span>
               <span>{t("runProfiles", locale).toUpperCase()}</span>
             </button>
             {showRunProfiles && (
@@ -845,7 +992,7 @@ export default function App() {
                         }
                         title={profile.name}
                       >
-                        <span className="profile-expand">{expandedProfiles.includes(profile.id) ? "▼" : "▶"}</span>
+                        <span className="profile-expand">{expandedProfiles.includes(profile.id) ? ICON.chevronDown : ICON.chevronRight}</span>
                         <span className="profile-head-dot" />
                         {profile.name}
                       </button>
@@ -871,7 +1018,7 @@ export default function App() {
                         title="Profile actions"
                         onClick={() => setActiveProfileMenuID((state) => (state === profile.id ? "" : profile.id))}
                       >
-                        ⋯
+                        {ICON.ellipsis}
                       </button>
                     </div>
                     {activeProfileMenuID === profile.id && (
@@ -888,8 +1035,7 @@ export default function App() {
                       </div>
                     )}
                     <div className="profile-runtime">
-                      <span className={`runtime-dot ${(profileStates[profile.id]?.status ?? "idle")}`} />
-                      <span className={`runtime-status ${(profileStates[profile.id]?.status ?? "idle")}`}>{profileStateLabel(profileStates[profile.id])}</span>
+                      <StatusIndicator status={(profileStates[profile.id]?.status ?? "idle") as VisualStatus} label={profileStateLabel(profileStates[profile.id])} compact />
                       <span className="runtime-meta">{profileStateSummary(profileStates[profile.id])}</span>
                     </div>
                     {expandedProfiles.includes(profile.id) && (
@@ -898,8 +1044,7 @@ export default function App() {
                           const itemStatus = profileItemStatus(profileStates[profile.id], item);
                           return (
                             <div key={item.id} className="profile-tree-row">
-                              <span className={`runtime-dot ${itemStatus}`} />
-                              <span className={`runtime-status ${itemStatus}`}>{item.target}</span>
+                              <StatusIndicator status={itemStatus} label={item.target} compact />
                               <span className="runtime-meta mono">{item.command} - {profileItemUptime(profileStates[profile.id], item)}</span>
                             </div>
                           );
@@ -929,8 +1074,8 @@ export default function App() {
         <section className="content-area">
           <div className="content-head">
             <div>
-              <h1>{t("targets", locale)}</h1>
-              <p>{selectedPath || t("noWorkspaceSelected", locale)}</p>
+              <h1>{pageTitle}</h1>
+              <p>{pageSubtitle}</p>
             </div>
             <div className="head-stats">
               <div>
@@ -1000,14 +1145,14 @@ export default function App() {
                     return (
                       <tr key={row.target.id} className={rowClassFromStatus(status)}>
                         <td>
-                          <span className={`status-dot ${status}`} title={statusLabel(status, locale)} />
+                          <StatusIndicator status={status} title={statusLabel(status, locale)} compact />
                         </td>
                         <td>{row.projectName}</td>
                         <td>{row.target.name}</td>
                         <td className="mono">{row.target.command}</td>
                         <td>
                           <div className="action-group">
-                            <button className="icon icon-play" title={t("play", locale)} onClick={() => void runTarget(row.target)} disabled={busy}>
+                            <button className="icon icon-play" title={t("play", locale)} onClick={() => void runTargetWithPortGuard(row.target)} disabled={busy}>
                               {ICON.play}
                             </button>
                             <button className="icon icon-stop" title={t("stop", locale)} onClick={() => running && void stopProcess(running.id)} disabled={!running}>
@@ -1015,6 +1160,13 @@ export default function App() {
                             </button>
                             <button className="icon icon-restart" title={t("restart", locale)} onClick={() => running && void restartProcess(running.id)} disabled={!running}>
                               {ICON.restart}
+                            </button>
+                            <button
+                              className="icon icon-custom"
+                              title="Run custom command"
+                              onClick={() => void runCustomCommand(row.target.workDir, row.target.command)}
+                            >
+                              {ICON.custom}
                             </button>
                             {running && (
                               <button className="icon icon-logs" title={t("openLogs", locale)} onClick={() => openLogsForProcess(running.id)}>
@@ -1073,10 +1225,7 @@ export default function App() {
                   <tr>
                     <th>{t("project", locale)}</th>
                     <th>{t("command", locale)}</th>
-                    <th>{t("status", locale)}</th>
-                    <th>Health</th>
-                    <th>Uptime</th>
-                    <th>Restarts</th>
+                    <th>{t("runtime", locale)}</th>
                     <th>Exit</th>
                     <th>{t("action", locale)}</th>
                   </tr>
@@ -1086,16 +1235,9 @@ export default function App() {
                     <tr key={process.id}>
                       <td>{processProjectLabel(process.workDir, summary?.projects)}</td>
                       <td className="mono">{process.command}</td>
-                      <td title={processHealthDetails(process)}>
-                        <span className={`runtime-dot ${processHealth(process)}`} style={{ marginRight: 6 }} />
-                        {process.healthStatus || process.status} · {formatUptime(process.startedAt)}{process.restartCount > 0 ? ` · r${process.restartCount}` : ""}
+                      <td className="process-runtime-cell" title={processHealthDetails(process)}>
+                        <StatusIndicator status={processHealth(process)} label={processRuntimeSummary(process)} compact />
                       </td>
-                      <td>
-                        <span className={`runtime-dot ${processHealth(process)}`} style={{ marginRight: 6 }} />
-                        {processHealth(process)}
-                      </td>
-                      <td>{formatUptime(process.startedAt)}</td>
-                      <td>{process.restartCount}</td>
                       <td>{process.exitCode ?? "-"}</td>
                       <td>
                         <div className="action-group">
@@ -1104,7 +1246,7 @@ export default function App() {
                             title={t("runAgain", locale)}
                             aria-label={t("runAgain", locale)}
                             onClick={() =>
-                              void runTarget({
+                              void runTargetWithPortGuard({
                                 id: process.id,
                                 name: process.command,
                                 command: process.command,
@@ -1141,80 +1283,108 @@ export default function App() {
           )}
 
           {view === "analyze" && (
-            <div className="logs-card logs-card-large">
-              <div className="logs-head">{t("packageAnalyze", locale)}</div>
-              <div className="action-group" style={{ marginBottom: 8 }}>
-                <button className="action-text-btn icon-restart" title={t("runAnalysis", locale)} onClick={() => void analyzeWorkspace()}>
-                  <span aria-hidden>{ICON.restart}</span>
-                  <span>{t("analyze", locale)}</span>
-                </button>
-                <span>{t("analyzeHelp", locale)}</span>
-              </div>
-              <pre>
-                {!analysis && <div>{t("noAnalysisYet", locale)}</div>}
-                {orderedFindings.length === 0 && analysis && <div>{t("noFindings", locale)}</div>}
-                {orderedFindings.map((finding) => (
-                  <div key={finding.id} className={`analysis-item severity-${finding.severity.toLowerCase()}`}>
-                    <div className="analysis-title">
-                      <span className={`severity-pill severity-${finding.severity.toLowerCase()}`}>{finding.severity.toUpperCase()}</span> {finding.title}
-                    </div>
-                    {finding.packageName && <div>Package: {finding.packageName}</div>}
-                    {finding.projectPath && <div>Project: {finding.projectPath}</div>}
-                    {finding.details && (
-                      <div>
-                        Details:
-                        <pre className="analysis-details">{prettifyDetails(finding.details)}</pre>
-                      </div>
-                    )}
-                    {finding.fixVersion && <div>Fix: {finding.fixVersion}</div>}
-                    {finding.reference && (
-                      <div>
-                        Reference:{" "}
-                        <a href={finding.reference} target="_blank" rel="noreferrer">
-                          {finding.reference}
-                        </a>
-                      </div>
-                    )}
-                    {finding.suggestion && <div>Suggestion: {finding.suggestion}</div>}
-                  </div>
-                ))}
-              </pre>
-              <div className="logs-head" style={{ marginTop: 10 }}>{t("affectedProjects", locale)}</div>
-              <div className="action-group" style={{ marginBottom: 8 }}>
-                <button className="action-text-btn icon-logs" title={t("analyzeAffected", locale)} onClick={() => void analyzeAffected()}>
-                  <span>{t("analyzeAffected", locale)}</span>
-                </button>
-              </div>
-              <pre>
-                {affectedLoading && <div>{t("analyzingChangedFiles", locale)}</div>}
-                {!affectedLoading && affectedError && <div className="error">{affectedError}</div>}
-                {!affectedLoading && !affectedError && affected?.notGitRepository && <div>{affected.message || t("notGitRepo", locale)}</div>}
-                {!affectedLoading && !affectedError && affected && !affected.notGitRepository && affected.changedFiles.length === 0 && <div>{t("affectedEmpty", locale)}</div>}
-                {!affectedLoading && !affectedError && affected && !affected.notGitRepository && affected.changedFiles.length > 0 && (
+            <div className="analyze-view">
+              <div className="analysis-section">
+                <div className="analysis-section-head">
                   <div>
-                    <div>{affected.changedFiles.length} {t("changedFiles", locale)}</div>
-                    {affected.changedFiles.map((file, idx) => (
-                      <div key={`${file.path}-${idx}`} className="mono">[{file.status}] {file.path}</div>
-                    ))}
-                    <div style={{ marginTop: 8 }}>{affected.projects.length} {t("affectedProjects", locale).toLowerCase()}</div>
-                    {affected.projects.map((project) => {
-                      const workspaceProject = summary?.projects.find((p) => p.name === project.name);
-                      return (
-                        <div key={project.name} style={{ marginTop: 6 }}>
-                          <div><strong>{project.name}</strong></div>
-                          <div className="action-group" style={{ margin: "4px 0" }}>
-                            {(workspaceProject?.targets ?? []).slice(0, 4).map((target) => (
-                              <button key={target.id} className="action-text-btn" onClick={() => void runTarget(target)}>
-                                {target.name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <div className="analysis-section-title">{t("packageAnalyze", locale)}</div>
+                    <div className="analysis-section-description">{t("analyzeHelp", locale)}</div>
                   </div>
-                )}
-              </pre>
+                  <button className="analysis-primary-btn" title={t("runAnalysis", locale)} onClick={() => void analyzeWorkspace()} disabled={analysisLoading}>
+                    {analysisLoading ? <span className="mini-spinner" aria-hidden /> : <span aria-hidden>{ICON.restart}</span>}
+                    <span>{analysisLoading ? t("analysisRunning", locale) : t("runAnalysis", locale)}</span>
+                  </button>
+                </div>
+                <div className="analysis-results">
+                  {analysisLoading && (
+                    <div className="analysis-loading">
+                      <span className="mini-spinner" aria-hidden />
+                      <span>{t("analysisRunning", locale)}</span>
+                    </div>
+                  )}
+                  {!analysisLoading && analysisError && <div className="analysis-empty error">{analysisError}</div>}
+                  {!analysisLoading && !analysisError && !analysis && <div className="analysis-empty">{t("noAnalysisYet", locale)}</div>}
+                  {!analysisLoading && !analysisError && orderedFindings.length === 0 && analysis && <div className="analysis-empty">{t("noFindings", locale)}</div>}
+                  {!analysisLoading && !analysisError && orderedFindings.map((finding) => (
+                    <div key={finding.id} className={`analysis-item severity-${finding.severity.toLowerCase()}`}>
+                      <div className="analysis-title">
+                        <span className={`severity-pill severity-${finding.severity.toLowerCase()}`}>{finding.severity.toUpperCase()}</span> {finding.title}
+                      </div>
+                      {finding.packageName && <div className="analysis-meta">Package: <span className="mono">{finding.packageName}</span></div>}
+                      {finding.projectPath && <div className="analysis-meta">Project: <span className="mono">{finding.projectPath}</span></div>}
+                      {finding.details && (
+                        <div className="analysis-detail-block">
+                          <div className="analysis-detail-label">Details</div>
+                          <pre className="analysis-details">{prettifyDetails(finding.details)}</pre>
+                        </div>
+                      )}
+                      {finding.fixVersion && <div className="analysis-meta">Fix: <span className="mono">{finding.fixVersion}</span></div>}
+                      {finding.reference && (
+                        <div className="analysis-meta">
+                          Reference:{" "}
+                          <a href={finding.reference} target="_blank" rel="noreferrer">
+                            {finding.reference}
+                          </a>
+                        </div>
+                      )}
+                      {finding.suggestion && <div className="analysis-suggestion">{finding.suggestion}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="analysis-section">
+                <div className="analysis-section-head">
+                  <div>
+                    <div className="analysis-section-title">{t("affectedProjects", locale)}</div>
+                    <div className="analysis-section-description">{t("affectedDescription", locale)}</div>
+                  </div>
+                  <button className="analysis-secondary-btn" title={t("analyzeAffected", locale)} onClick={() => void analyzeAffected()} disabled={affectedLoading}>
+                    {affectedLoading ? <span className="mini-spinner" aria-hidden /> : <span aria-hidden>{ICON.restart}</span>}
+                    <span>{affectedLoading ? t("analyzingChangedFiles", locale) : t("analyzeAffected", locale)}</span>
+                  </button>
+                </div>
+                <div className="analysis-results compact">
+                  {affectedLoading && (
+                    <div className="analysis-loading">
+                      <span className="mini-spinner" aria-hidden />
+                      <span>{t("analyzingChangedFiles", locale)}</span>
+                    </div>
+                  )}
+                  {!affectedLoading && affectedError && <div className="analysis-empty error">{affectedError}</div>}
+                  {!affectedLoading && !affectedError && affected?.notGitRepository && <div className="analysis-empty">{affected.message || t("notGitRepo", locale)}</div>}
+                  {!affectedLoading && !affectedError && affected && !affected.notGitRepository && affected.changedFiles.length === 0 && <div className="analysis-empty">{t("affectedEmpty", locale)}</div>}
+                  {!affectedLoading && !affectedError && affected && !affected.notGitRepository && affected.changedFiles.length > 0 && (
+                    <div className="affected-results">
+                      <div className="analysis-count">{affected.changedFiles.length} {t("changedFiles", locale)}</div>
+                      <div className="affected-file-list">
+                        {affected.changedFiles.map((file, idx) => (
+                          <div key={`${file.path}-${idx}`} className="affected-file mono">
+                            <span>{file.status}</span>
+                            <span>{file.path}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="analysis-count">{affected.projects.length} {t("affectedProjects", locale).toLowerCase()}</div>
+                      {affected.projects.map((project) => {
+                        const workspaceProject = summary?.projects.find((p) => p.name === project.name);
+                        return (
+                          <div key={project.name} className="affected-project">
+                            <div><strong>{project.name}</strong></div>
+                            <div className="affected-targets">
+                              {(workspaceProject?.targets ?? []).slice(0, 4).map((target) => (
+                                <button key={target.id} className="analysis-target-btn" onClick={() => void runTargetWithPortGuard(target)}>
+                                  {target.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1222,6 +1392,7 @@ export default function App() {
             <div className={view === "logs" ? "logs-card logs-card-large" : "logs-card"}>
               <div className="logs-head logs-head-row">
                 <span>{t("logs", locale)}</span>
+                {copyNotice && <span className="copy-notice">{copyNotice}</span>}
                 <button
                   className={`copy-btn copy-header-btn ${copiedKey === "all-logs" ? "is-copied" : ""}`}
                   onClick={() => void copyAllVisibleLogs()}
@@ -1240,7 +1411,8 @@ export default function App() {
                     title={`${processHealthDetails(process)} | ${processProjectLabel(process.workDir, summary?.projects)} ${ICON.bullet} ${process.command}`}
                   >
                     <span className="tab-label">
-                      {processHealth(process) === "running" ? "●" : processHealth(process) === "warning" ? "⚠" : processHealth(process) === "failed" ? "✕" : "○"} {processProjectLabel(process.workDir, summary?.projects)} {ICON.bullet} {process.command}
+                      <StatusIndicator status={processHealth(process)} compact />
+                      <span>{processProjectLabel(process.workDir, summary?.projects)} {ICON.bullet} {process.command}</span>
                     </span>
                     <span
                       role="button"
@@ -1261,7 +1433,7 @@ export default function App() {
                         }
                       }}
                     >
-                      ×
+                      {ICON.close}
                     </span>
                   </button>
                 ))}
@@ -1312,6 +1484,50 @@ export default function App() {
           {t("by", locale)}
         </button>
       </footer>
+      {pendingPortDecision && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="port-dialog" role="dialog" aria-modal="true" aria-label="Port conflict">
+            <div className="port-dialog-title">Port already in use</div>
+            <div className="port-dialog-subtitle">
+              {pendingPortDecision.report.conflicts.map((conflict) => (
+                <div key={`${conflict.port}-${conflict.pid}`}>
+                  Port <strong>{conflict.port}</strong> is used by{" "}
+                  <span className="mono">{conflict.command || `PID ${conflict.pid}`}</span>
+                  {conflict.managed ? " (MonoDock)" : ""}
+                </div>
+              ))}
+            </div>
+            <div className="port-dialog-command mono">{pendingPortDecision.target.command}</div>
+            <label className="port-dialog-field">
+              <span>Run on port</span>
+              <input
+                value={alternatePort}
+                inputMode="numeric"
+                onChange={(event) => setAlternatePort(event.target.value.replace(/[^\d]/g, ""))}
+                disabled={portActionLoading}
+              />
+            </label>
+            <div className="port-dialog-actions">
+              <button className="restore-btn" disabled={portActionLoading} onClick={() => void stopConflictsAndRun()}>
+                Stop existing
+              </button>
+              <button className="action-text-btn" disabled={portActionLoading || !alternatePortValid} onClick={() => void runOnAnotherPort()}>
+                Run on port {alternatePort || "..."}
+              </button>
+              <button
+                className="ignore-btn"
+                disabled={portActionLoading}
+                onClick={() => {
+                  setPendingPortDecision(null);
+                  setAlternatePort("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
     </>
   );

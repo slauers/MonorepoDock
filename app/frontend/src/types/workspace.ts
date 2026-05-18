@@ -34,6 +34,7 @@ export type ProcessInfo = {
   id: string;
   command: string;
   workDir: string;
+  pid: number;
   startedAt: string;
   stoppedAt?: string;
   exitCode?: number;
@@ -41,6 +42,28 @@ export type ProcessInfo = {
   lastOutputAt?: string;
   healthStatus: "running" | "idle" | "stopped" | "failed" | "warning";
   status: string;
+};
+
+export type PortCandidate = {
+  port: number;
+  source: string;
+};
+
+export type PortConflict = {
+  port: number;
+  pid: number;
+  command: string;
+  managed: boolean;
+  managedProcessID: string;
+};
+
+export type PortCheckReport = {
+  workDir: string;
+  command: string;
+  ports: PortCandidate[];
+  conflicts: PortConflict[];
+  suggestedPort: number;
+  message: string;
 };
 
 export type LogEntry = {

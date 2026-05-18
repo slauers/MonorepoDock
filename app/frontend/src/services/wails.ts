@@ -1,4 +1,4 @@
-import type { AffectedReport, AnalysisReport, ProcessInfo, ProfileRuntimeState, RecentWorkspace, RunProfile, RuntimeSession, WorkspaceGroup, WorkspaceSummary } from "../types/workspace";
+import type { AffectedReport, AnalysisReport, PortCheckReport, ProcessInfo, ProfileRuntimeState, RecentWorkspace, RunProfile, RuntimeSession, WorkspaceGroup, WorkspaceSummary } from "../types/workspace";
 
 declare global {
   interface Window {
@@ -14,6 +14,9 @@ declare global {
           SaveGroup: (group: WorkspaceGroup) => Promise<void>;
           DeleteGroup: (groupID: string) => Promise<void>;
           RunCommand: (workDir: string, command: string) => Promise<ProcessInfo>;
+          CheckPortConflicts: (workDir: string, command: string) => Promise<PortCheckReport>;
+          CommandWithPort: (workDir: string, command: string, port: number) => Promise<string>;
+          StopPortProcess: (workDir: string, pid: number, managedProcessID: string) => Promise<void>;
           StopCommand: (processId: string) => Promise<void>;
           RestartCommand: (processId: string) => Promise<ProcessInfo>;
           ListProcesses: () => Promise<ProcessInfo[]>;
@@ -56,6 +59,9 @@ export const wailsService = {
   saveGroup: (group: WorkspaceGroup) => appApi().SaveGroup(group),
   deleteGroup: (groupID: string) => appApi().DeleteGroup(groupID),
   runCommand: (workDir: string, command: string) => appApi().RunCommand(workDir, command),
+  checkPortConflicts: (workDir: string, command: string) => appApi().CheckPortConflicts(workDir, command),
+  commandWithPort: (workDir: string, command: string, port: number) => appApi().CommandWithPort(workDir, command, port),
+  stopPortProcess: (workDir: string, pid: number, managedProcessID: string) => appApi().StopPortProcess(workDir, pid, managedProcessID),
   stopCommand: (processId: string) => appApi().StopCommand(processId),
   restartCommand: (processId: string) => appApi().RestartCommand(processId),
   listProcesses: () => appApi().ListProcesses(),
