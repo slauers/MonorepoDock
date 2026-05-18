@@ -11,6 +11,7 @@ import (
 	"monodock/backend/internal/affected"
 	"monodock/backend/internal/analyzer"
 	"monodock/backend/internal/config"
+	"monodock/backend/internal/deps"
 	"monodock/backend/internal/groups"
 	"monodock/backend/internal/ports"
 	"monodock/backend/internal/profiles"
@@ -27,6 +28,7 @@ type App struct {
 	groups          *groups.Service
 	analyzer        *analyzer.Service
 	affected        *affected.Service
+	deps            *deps.Service
 	ports           *ports.Service
 	profiles        *profiles.Service
 	processes       *runner.Manager
@@ -64,6 +66,7 @@ func NewApp() (*App, error) {
 		groups:       groupsSvc,
 		analyzer:     analyzer.NewService(),
 		affected:     affected.NewService(),
+		deps:         deps.NewService(),
 		ports:        ports.NewService(),
 		profiles:     profilesSvc,
 		processes:    runner.NewManager(),
@@ -284,6 +287,26 @@ func (a *App) AnalyzeAffected(root string) (affected.Report, error) {
 		return affected.Report{}, err
 	}
 	return a.affected.Analyze(a.ctx, root, summary)
+}
+
+func (a *App) AnalyzeDependencies(root string) (deps.Report, error) {
+	if a.ctx == nil {
+		return deps.Report{}, errors.New("application context is not ready")
+	}
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return deps.Report{}, errors.New("workspace root is required")
+	}
+
+	summary := a.lastSummary
+	if summary.RootPath != root {
+		var err error
+		summary, err = a.workspace.Inspect(a.ctx, root)
+		if err != nil {
+			return deps.Report{}, err
+		}
+	}
+	return a.deps.Analyze(a.ctx, root, summary)
 }
 
 func (a *App) CloseApp() {

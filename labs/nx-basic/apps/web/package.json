@@ -1,0 +1,16 @@
+{
+  "name": "@nx-basic/web",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('nx web build ok')\"",
+    "test": "node -e \"console.log('nx web test ok')\"",
+    "dev": "node -e \"console.log('nx web dev started'); setInterval(() => console.log('nx web heartbeat ' + new Date().toISOString()), 2500)\""
+  },
+  "dependencies": {
+    "@nx-basic/shared": "0.1.0",
+    "@nx-basic/ui": "0.1.0"
+  },
+  "devDependencies": {
+    "@nx-basic/tokens": "0.1.0"
+  }
+}

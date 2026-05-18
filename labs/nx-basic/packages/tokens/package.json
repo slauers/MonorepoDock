@@ -1,0 +1,8 @@
+{
+  "name": "@nx-basic/tokens",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('nx tokens build ok')\"",
+    "test": "node -e \"console.log('nx tokens test ok')\""
+  }
+}

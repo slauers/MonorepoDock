@@ -117,6 +117,36 @@ export type AffectedReport = {
   message: string;
 };
 
+export type DependencyNode = {
+  project: string;
+  path: string;
+  packageName: string;
+  dependsOn: string[];
+  usedBy: string[];
+  impact: DependencyImpact;
+};
+
+export type DependencyImpact = {
+  project: string;
+  directDependencies: string[];
+  directDependents: string[];
+  transitiveDependents: string[];
+};
+
+export type DependencyEdge = {
+  from: string;
+  to: string;
+  dependency: string;
+};
+
+export type DependencyReport = {
+  workspaceRoot: string;
+  nodes: DependencyNode[];
+  edges: DependencyEdge[];
+  generatedAt: string;
+  message: string;
+};
+
 export type ProfileItem = {
   id: string;
   project: string;

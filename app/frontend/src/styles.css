@@ -1859,6 +1859,378 @@ pre {
   gap: 8px;
 }
 
+.dependency-results {
+  max-height: min(48vh, 500px);
+}
+
+.dependency-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dependency-view-toggle {
+  display: inline-flex;
+  border: 1px solid #1f3c61;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dependency-view-toggle button {
+  border: 0;
+  background: transparent;
+  color: #9cb4d3;
+  height: 28px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.dependency-view-toggle button.active {
+  background: rgba(88, 142, 211, 0.2);
+  color: #e8f1ff;
+}
+
+.dependency-insights {
+  display: grid;
+  gap: 9px;
+}
+
+.dependency-graph-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.dependency-graph-toolbar {
+  display: flex;
+  gap: 6px;
+}
+
+.dependency-graph-canvas {
+  height: 380px;
+  border: 1px solid #1b2d46;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0b1628;
+}
+
+.dependency-graph-fullscreen {
+  position: fixed;
+  inset: 56px 0 32px 0;
+  z-index: 40;
+  background: #0b1220;
+  border-top: 1px solid #1f2f49;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.dependency-graph-fullscreen-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #d8e7ff;
+}
+
+.dependency-graph-fullscreen-canvas {
+  min-height: 0;
+  border: 1px solid #1b2d46;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0b1628;
+}
+
+.theme-light .dependency-graph-fullscreen {
+  background: #f3f5f8;
+  border-top-color: #dbe3ef;
+}
+
+.theme-light .dependency-graph-fullscreen-head {
+  color: #1d2633;
+}
+
+.theme-hacker .dependency-graph-fullscreen {
+  background: #000000;
+  border-top-color: #195219;
+}
+
+.theme-hacker .dependency-graph-fullscreen-head {
+  color: #86ff86;
+}
+
+.dependency-graph-canvas .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid #28446a;
+}
+
+.dependency-graph-canvas .react-flow__controls-button {
+  background: #10213a;
+  border-bottom: 1px solid #2b4367;
+  color: #b8d2ef;
+}
+
+.dependency-graph-canvas .react-flow__controls-button:hover {
+  background: #1a3356;
+}
+
+.dependency-graph-canvas .react-flow__attribution {
+  display: none;
+}
+
+.dependency-graph-summary {
+  border: 1px solid #1f3c61;
+  border-radius: 8px;
+  background: #0f1c31;
+  padding: 8px 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.dependency-graph-summary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e0edff;
+}
+
+.react-flow__node.dependency-graph-node {
+  border: 1px solid #2b4367;
+  border-radius: 8px;
+  background: #0f1c31;
+  min-width: 180px;
+  transition: opacity 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.react-flow__node.dependency-graph-node .react-flow__node-default {
+  padding: 0;
+}
+
+.react-flow__node.dependency-graph-node.selected {
+  border-color: #76adff;
+  box-shadow: 0 0 0 1px rgba(118, 173, 255, 0.38), 0 0 14px rgba(75, 131, 219, 0.2);
+}
+
+.react-flow__node.dependency-graph-node.dependency {
+  border-color: #4e85c6;
+}
+
+.react-flow__node.dependency-graph-node.dependent {
+  border-color: #3fb1ac;
+}
+
+.react-flow__node.dependency-graph-node.transitive {
+  border-color: #5f7fae;
+}
+
+.react-flow__node.dependency-graph-node.dimmed {
+  opacity: 0.26;
+}
+
+.dependency-graph-node-body {
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.dependency-graph-node-title {
+  color: #dfeefe;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dependency-graph-node-meta {
+  color: #97b4d8;
+  font-size: 11px;
+}
+
+.react-flow__edge.dependency-flow-edge {
+  transition: opacity 120ms ease;
+}
+
+.react-flow__edge.dependency-flow-edge .react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.react-flow__edge.dependency-flow-edge.upstream .react-flow__edge-path,
+.react-flow__edge.dependency-flow-edge.downstream .react-flow__edge-path,
+.react-flow__edge.dependency-flow-edge.transitive .react-flow__edge-path {
+  stroke-dasharray: 7 7;
+  animation: dependency-flow 1.8s linear infinite;
+}
+
+.react-flow__edge.dependency-flow-edge.downstream .react-flow__edge-path {
+  animation-duration: 1.5s;
+}
+
+.react-flow__edge.dependency-flow-edge.transitive .react-flow__edge-path {
+  animation-duration: 2.2s;
+}
+
+.react-flow__edge.dependency-flow-edge.dimmed .react-flow__edge-path {
+  animation: none;
+}
+
+@keyframes dependency-flow {
+  from {
+    stroke-dashoffset: 28;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.dependency-flow-edge .react-flow__edge-path {
+    animation: none !important;
+  }
+}
+
+.dependency-card-list {
+  display: grid;
+  gap: 7px;
+}
+
+.dependency-card {
+  border: 1px solid #1b2d46;
+  border-radius: 8px;
+  background: #0f1c31;
+  overflow: hidden;
+  transition: border-color 120ms ease, background-color 120ms ease, opacity 120ms ease;
+}
+
+.dependency-card.related {
+  border-color: #2f568a;
+}
+
+.dependency-card.dimmed {
+  opacity: 0.3;
+}
+
+.dependency-card.active {
+  border-color: #5b8fda;
+  background: #12233c;
+  box-shadow: 0 0 0 1px rgba(91, 143, 218, 0.24);
+}
+
+.dependency-card-head {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: #d8e7ff;
+  display: grid;
+  grid-template-columns: 14px minmax(120px, 1fr) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  text-align: left;
+}
+
+.dependency-card-head:hover {
+  background: rgba(132, 184, 255, 0.08);
+}
+
+.dependency-project-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dependency-package {
+  color: #8ea5c5;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dependency-metric {
+  color: #8ea5c5;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dependency-card-body {
+  border-top: 1px solid #1b2d46;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dependency-label {
+  color: #90a6c3;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+
+.dependency-empty {
+  color: #687d9a;
+  font-size: 12px;
+}
+
+.analysis-empty.compact {
+  min-height: auto;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 2px 0;
+}
+
+.dependency-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.dependency-chip {
+  height: 24px;
+  border: 1px solid #2b4367;
+  border-radius: 999px;
+  background: #0a1424;
+  color: #a8c3e8;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.dependency-chip:hover,
+.dependency-chip.active {
+  border-color: #4e7bc0;
+  background: rgba(78, 123, 192, 0.18);
+  color: #e3eeff;
+}
+
+.dependency-chip.related {
+  border-color: #37649d;
+}
+
+.dependency-chip.impact {
+  border-color: #3f6ba5;
+  background: rgba(63, 107, 165, 0.14);
+}
+
+.dependency-impact {
+  grid-column: 1 / -1;
+  border-top: 1px solid #1b2d46;
+  padding-top: 8px;
+}
+
+.dependency-impact-title {
+  color: #9cb4d3;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .dependency-card-head,
+  .dependency-card-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 .affected-file-list {
   display: grid;
   gap: 4px;
@@ -1919,14 +2291,43 @@ pre {
   color: #1d2633;
 }
 
+.theme-dark * {
+  scrollbar-width: thin;
+  scrollbar-color: #3c5f8d #0b1628;
+}
+
+.theme-dark *::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.theme-dark *::-webkit-scrollbar-track {
+  background: #0b1628;
+  border: 1px solid #173050;
+}
+
+.theme-dark *::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #4f79ab, #33557f);
+  border: 2px solid #0b1628;
+  border-radius: 10px;
+}
+
+.theme-dark *::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #618dbe, #3f6998);
+}
+
+.theme-dark *::-webkit-scrollbar-corner {
+  background: #0b1628;
+}
+
 .theme-light * {
   scrollbar-width: thin;
   scrollbar-color: #b9c7db #eef3fb;
 }
 
 .theme-light *::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
 }
 
 .theme-light *::-webkit-scrollbar-track {
@@ -2638,8 +3039,8 @@ pre {
 }
 
 .theme-hacker *::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
 }
 
 .theme-hacker *::-webkit-scrollbar-track {

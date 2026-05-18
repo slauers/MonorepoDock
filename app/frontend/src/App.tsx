@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
-import type { PortCheckReport, ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
+import type { DependencyNode, PortCheckReport, ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
 import { getLocale, t } from "./i18n";
 import { wailsService } from "./services/wails";
+import ReactFlow, { Background, Controls, MarkerType, applyNodeChanges, type Edge, type Node, type NodeChange, type ReactFlowInstance } from "reactflow";
+import "reactflow/dist/style.css";
 
 const ICON = {
   moon: "\u263E",
@@ -257,6 +259,27 @@ function logTone(message: string, stream: string): "success" | "error" | "warn" 
   return "info";
 }
 
+function dependencyLevel(project: string, nodeByProject: Map<string, DependencyNode>, memo: Map<string, number>, stack: Set<string>): number {
+  const cached = memo.get(project);
+  if (cached !== undefined) return cached;
+  if (stack.has(project)) return 0;
+  stack.add(project);
+  const node = nodeByProject.get(project);
+  if (!node || node.dependsOn.length === 0) {
+    stack.delete(project);
+    memo.set(project, 0);
+    return 0;
+  }
+  let maxDepth = 0;
+  for (const dep of node.dependsOn) {
+    const depth = dependencyLevel(dep, nodeByProject, memo, stack) + 1;
+    if (depth > maxDepth) maxDepth = depth;
+  }
+  stack.delete(project);
+  memo.set(project, maxDepth);
+  return maxDepth;
+}
+
 export default function App() {
   const locale = getLocale();
   const {
@@ -270,6 +293,9 @@ export default function App() {
     affected,
     affectedLoading,
     affectedError,
+    dependencies,
+    dependenciesLoading,
+    dependenciesError,
     activeLogProcessId,
     selectedPath,
     selectedRoots,
@@ -288,6 +314,7 @@ export default function App() {
     targetStatus,
     analyzeWorkspace,
     analyzeAffected,
+    analyzeDependencies,
     bindEvents,
   } = useWorkspaceStore();
   const [query, setQuery] = useState("");
@@ -302,6 +329,13 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [activeProfileTargetId, setActiveProfileTargetId] = useState("");
   const [expandedProfiles, setExpandedProfiles] = useState<string[]>([]);
+  const [expandedDependencyProjects, setExpandedDependencyProjects] = useState<string[]>([]);
+  const [activeDependencyProject, setActiveDependencyProject] = useState("");
+  const [dependencyView, setDependencyView] = useState<"list" | "graph">("list");
+  const [dependencyFlow, setDependencyFlow] = useState<ReactFlowInstance | null>(null);
+  const [dependencyGraphFullscreen, setDependencyGraphFullscreen] = useState(false);
+  const [dependencyGraphNodes, setDependencyGraphNodes] = useState<Node[]>([]);
+  const [dependencyGraphEdges, setDependencyGraphEdges] = useState<Edge[]>([]);
   const [showRecents, setShowRecents] = useState(true);
   const [showGroups, setShowGroups] = useState(true);
   const [showRunProfiles, setShowRunProfiles] = useState(true);
@@ -358,6 +392,31 @@ export default function App() {
   useEffect(() => {
     void refreshProfileStates();
   }, [processes, selectedPath]);
+
+  useEffect(() => {
+    setExpandedDependencyProjects([]);
+    setActiveDependencyProject("");
+    setDependencyView("list");
+    setDependencyGraphFullscreen(false);
+  }, [selectedPath]);
+
+  useEffect(() => {
+    if (!dependencyGraphFullscreen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDependencyGraphFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dependencyGraphFullscreen]);
+
+  useEffect(() => {
+    const root = selectedPath.trim();
+    if (!root || loading || dependenciesLoading) return;
+    if (dependencies?.workspaceRoot === root || dependenciesError) return;
+    void analyzeDependencies();
+  }, [selectedPath, loading, dependenciesLoading, dependencies?.workspaceRoot, dependenciesError, analyzeDependencies]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("monodock-theme");
@@ -466,6 +525,151 @@ export default function App() {
     return out;
   }, [processes]);
   const visibleProfiles = useMemo(() => profiles, [profiles]);
+  const dependencyNodeByProject = useMemo(() => {
+    const index = new Map<string, DependencyNode>();
+    for (const node of dependencies?.nodes ?? []) {
+      index.set(node.project, node);
+    }
+    return index;
+  }, [dependencies]);
+  const dependencyContext = useMemo(() => {
+    if (!activeDependencyProject) return null;
+    const node = dependencyNodeByProject.get(activeDependencyProject);
+    if (!node) return null;
+
+    const related = new Set<string>();
+    related.add(node.project);
+    for (const name of node.impact.directDependencies) related.add(name);
+    for (const name of node.impact.directDependents) related.add(name);
+    for (const name of node.impact.transitiveDependents) related.add(name);
+
+    return {
+      node,
+      related,
+    };
+  }, [activeDependencyProject, dependencyNodeByProject]);
+  const dependencyGraphData = useMemo(() => {
+    const sourceNodes = dependencies?.nodes ?? [];
+    const sourceEdges = dependencies?.edges ?? [];
+    if (sourceNodes.length === 0 || sourceEdges.length === 0) {
+      return { nodes: [] as Node[], edges: [] as Edge[] };
+    }
+
+    const nodeByProject = new Map<string, DependencyNode>();
+    for (const node of sourceNodes) {
+      nodeByProject.set(node.project, node);
+    }
+
+    const levelMemo = new Map<string, number>();
+    for (const node of sourceNodes) {
+      dependencyLevel(node.project, nodeByProject, levelMemo, new Set<string>());
+    }
+    const maxLevel = Math.max(...Array.from(levelMemo.values()));
+
+    const grouped = new Map<number, DependencyNode[]>();
+    for (const node of sourceNodes) {
+      const level = levelMemo.get(node.project) ?? 0;
+      if (!grouped.has(level)) grouped.set(level, []);
+      grouped.get(level)!.push(node);
+    }
+    for (const group of grouped.values()) {
+      group.sort((a, b) => a.project.localeCompare(b.project));
+    }
+
+    const flowNodes: Node[] = [];
+    const columnWidth = 280;
+    const rowHeight = 102;
+    const paddingY = 24;
+    const selectedNode = activeDependencyProject ? nodeByProject.get(activeDependencyProject) : undefined;
+
+    for (const node of sourceNodes) {
+      const level = levelMemo.get(node.project) ?? 0;
+      const row = grouped.get(level)?.findIndex((item) => item.project === node.project) ?? 0;
+      const x = (maxLevel - level) * columnWidth;
+      const y = row * rowHeight + paddingY;
+
+      const isSelected = node.project === activeDependencyProject;
+      const isDependency = Boolean(selectedNode?.dependsOn.includes(node.project));
+      const isDependent = Boolean(selectedNode?.usedBy.includes(node.project));
+      const isTransitive = Boolean(selectedNode?.impact.transitiveDependents.includes(node.project));
+      const isRelated = isSelected || isDependency || isDependent || isTransitive;
+      const dimmed = Boolean(selectedNode) && !isRelated;
+      const relation = isSelected ? "selected" : isDependency ? "dependency" : isDependent ? "dependent" : isTransitive ? "transitive" : "neutral";
+
+      flowNodes.push({
+        id: node.project,
+        position: { x, y },
+        className: `dependency-graph-node ${relation} ${dimmed ? "dimmed" : ""}`,
+        data: {
+          label: (
+            <div className="dependency-graph-node-body">
+              <div className="dependency-graph-node-title">{node.project}</div>
+              <div className="dependency-graph-node-meta">{node.dependsOn.length} deps · {node.usedBy.length} users</div>
+            </div>
+          ),
+        },
+      });
+    }
+
+    const flowEdges: Edge[] = sourceEdges.map((edge) => {
+      const selectedNodePresent = Boolean(selectedNode);
+      const isUpstreamLink = selectedNodePresent && edge.from === activeDependencyProject;
+      const isDownstreamLink = selectedNodePresent && edge.to === activeDependencyProject;
+      const isSelectedLink = isUpstreamLink || isDownstreamLink;
+      const isRelatedLink = selectedNodePresent && Boolean(
+        dependencyContext?.related.has(edge.from) && dependencyContext?.related.has(edge.to),
+      );
+      const isTransitiveLink = selectedNodePresent && isRelatedLink && !isSelectedLink;
+      const stroke = isUpstreamLink ? "#66a8ff" : isDownstreamLink ? "#53d4cf" : isTransitiveLink ? "#5b7fb4" : "#36587f";
+      const opacity = selectedNodePresent ? (isSelectedLink ? 1 : isTransitiveLink ? 0.86 : 0.22) : 0.68;
+      const width = isSelectedLink ? 2.2 : isTransitiveLink ? 1.8 : 1.2;
+      const shouldAnimate = selectedNodePresent && (isSelectedLink || isTransitiveLink);
+      return {
+        id: `${edge.from}->${edge.to}`,
+        source: edge.from,
+        target: edge.to,
+        animated: shouldAnimate,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: isSelectedLink ? 18 : 14,
+          height: isSelectedLink ? 18 : 14,
+          color: stroke,
+        },
+        className: `dependency-flow-edge ${isUpstreamLink ? "upstream" : isDownstreamLink ? "downstream" : isTransitiveLink ? "transitive" : "neutral"} ${selectedNodePresent && !shouldAnimate ? "dimmed" : ""}`,
+        style: {
+          stroke,
+          strokeWidth: width,
+          opacity,
+        },
+      };
+    });
+
+    return { nodes: flowNodes, edges: flowEdges };
+  }, [dependencies, activeDependencyProject, dependencyContext]);
+  useEffect(() => {
+    setDependencyGraphNodes((current) => {
+      const previousPositionByID = new Map<string, Node["position"]>();
+      for (const node of current) {
+        previousPositionByID.set(node.id, node.position);
+      }
+      return dependencyGraphData.nodes.map((node) => {
+        const previousPosition = previousPositionByID.get(node.id);
+        if (!previousPosition) return node;
+        return { ...node, position: previousPosition };
+      });
+    });
+    setDependencyGraphEdges(dependencyGraphData.edges);
+  }, [dependencyGraphData]);
+
+  const onDependencyNodesChange = (changes: NodeChange[]) => {
+    setDependencyGraphNodes((nodes) => applyNodeChanges(changes, nodes));
+  };
+  const resetDependencyGraphLayout = () => {
+    setDependencyGraphNodes(dependencyGraphData.nodes);
+    window.setTimeout(() => {
+      dependencyFlow?.fitView({ padding: 0.15, duration: 220 });
+    }, 20);
+  };
   const visibleTabProcesses = useMemo(
     () => tabProcesses.filter((process) => !closedLogTabs.includes(process.id)),
     [tabProcesses, closedLogTabs],
@@ -477,6 +681,16 @@ export default function App() {
     }
     setActiveLogProcess(visibleTabProcesses[0]?.id ?? "");
   }, [activeLogProcessId, visibleTabProcesses, setActiveLogProcess]);
+
+  useEffect(() => {
+    if (dependencyView !== "graph" || !dependencyFlow || dependencyGraphNodes.length === 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      dependencyFlow.fitView({ padding: 0.15, duration: 220 });
+    }, 10);
+    return () => window.clearTimeout(timer);
+  }, [dependencyView, dependencyFlow, dependencyGraphNodes.length]);
 
   const copyText = async (key: string, value: string) => {
     if (!value) return;
@@ -1336,6 +1550,220 @@ export default function App() {
               <div className="analysis-section">
                 <div className="analysis-section-head">
                   <div>
+                    <div className="analysis-section-title">{t("workspaceDependencies", locale)}</div>
+                    <div className="analysis-section-description">{t("dependenciesDescription", locale)}</div>
+                  </div>
+                  <div className="dependency-head-actions">
+                    <div className="dependency-view-toggle" role="tablist" aria-label={t("workspaceDependencies", locale)}>
+                      <button
+                        className={dependencyView === "list" ? "active" : ""}
+                        onClick={() => setDependencyView("list")}
+                        role="tab"
+                        aria-selected={dependencyView === "list"}
+                      >
+                        {t("dependencyListView", locale)}
+                      </button>
+                      <button
+                        className={dependencyView === "graph" ? "active" : ""}
+                        onClick={() => setDependencyView("graph")}
+                        role="tab"
+                        aria-selected={dependencyView === "graph"}
+                      >
+                        {t("dependencyGraphView", locale)}
+                      </button>
+                    </div>
+                    <button className="analysis-secondary-btn" title={t("analyzeDependencies", locale)} onClick={() => void analyzeDependencies()} disabled={dependenciesLoading || loading || !selectedPath}>
+                      {dependenciesLoading ? <span className="mini-spinner" aria-hidden /> : <span aria-hidden>{ICON.restart}</span>}
+                      <span>{dependenciesLoading ? t("analyzingDependencies", locale) : t("analyzeDependencies", locale)}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="analysis-results dependency-results">
+                  {dependenciesLoading && (
+                    <div className="analysis-loading">
+                      <span className="mini-spinner" aria-hidden />
+                      <span>{t("analyzingDependencies", locale)}</span>
+                    </div>
+                  )}
+                  {!dependenciesLoading && dependenciesError && <div className="analysis-empty error">{dependenciesError}</div>}
+                  {!dependenciesLoading && !dependenciesError && !dependencies && <div className="analysis-empty">{t("noDependencyInsightsYet", locale)}</div>}
+                  {!dependenciesLoading && !dependenciesError && dependencies && dependencies.nodes.length === 0 && (
+                    <div className="analysis-empty">{dependencies.message || t("noInternalDependencies", locale)}</div>
+                  )}
+                  {!dependenciesLoading && !dependenciesError && dependencies && dependencies.nodes.length > 0 && (
+                    <div className="dependency-insights">
+                      <div className="analysis-count">
+                        {dependencies.nodes.length} {t("projects", locale).toLowerCase()} · {dependencies.edges.length} {t("internalLinks", locale)}
+                      </div>
+                      {dependencies.message && dependencies.edges.length === 0 && <div className="analysis-empty compact">{dependencies.message}</div>}
+                      {dependencyView === "list" && <div className="dependency-card-list">
+                        {dependencies.nodes.map((node) => {
+                          const expanded = expandedDependencyProjects.includes(node.project);
+                          const active = activeDependencyProject === node.project;
+                          const related = dependencyContext?.related.has(node.project) ?? false;
+                          const dimmed = Boolean(dependencyContext) && !related;
+                          return (
+                            <div key={node.project} className={`dependency-card ${active ? "active" : ""} ${related ? "related" : ""} ${dimmed ? "dimmed" : ""}`}>
+                              <button
+                                className="dependency-card-head"
+                                onClick={() => {
+                                  setActiveDependencyProject((current) => (current === node.project ? "" : node.project));
+                                  setExpandedDependencyProjects((state) =>
+                                    state.includes(node.project) ? state.filter((item) => item !== node.project) : [...state, node.project],
+                                  );
+                                }}
+                              >
+                                <span className="profile-expand">{expanded ? ICON.chevronDown : ICON.chevronRight}</span>
+                                <span className="dependency-project-name">{node.project}</span>
+                                <span className="dependency-package mono">{node.packageName || node.path}</span>
+                                <span className="dependency-metric">{node.dependsOn.length} deps</span>
+                                <span className="dependency-metric">{node.usedBy.length} users</span>
+                              </button>
+                              {expanded && (
+                                <div className="dependency-card-body">
+                                  <div>
+                                    <div className="dependency-label">{t("dependsOn", locale)}</div>
+                                    {node.dependsOn.length === 0 && <div className="dependency-empty">{t("none", locale)}</div>}
+                                    {node.dependsOn.length > 0 && (
+                                      <div className="dependency-chip-list">
+                                        {node.dependsOn.map((name) => (
+                                          <button
+                                            key={name}
+                                            className={`dependency-chip ${activeDependencyProject === name ? "active" : ""} ${dependencyContext?.related.has(name) ? "related" : ""}`}
+                                            onClick={() => {
+                                              setActiveDependencyProject(name);
+                                              setExpandedDependencyProjects((state) => (state.includes(name) ? state : [...state, name]));
+                                            }}
+                                          >
+                                            {name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="dependency-label">{t("usedBy", locale)}</div>
+                                    {node.usedBy.length === 0 && <div className="dependency-empty">{t("none", locale)}</div>}
+                                    {node.usedBy.length > 0 && (
+                                      <div className="dependency-chip-list">
+                                        {node.usedBy.map((name) => (
+                                          <button
+                                            key={name}
+                                            className={`dependency-chip ${activeDependencyProject === name ? "active" : ""} ${dependencyContext?.related.has(name) ? "related" : ""}`}
+                                            onClick={() => {
+                                              setActiveDependencyProject(name);
+                                              setExpandedDependencyProjects((state) => (state.includes(name) ? state : [...state, name]));
+                                            }}
+                                          >
+                                            {name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {active && (
+                                    <div className="dependency-impact">
+                                      <div className="dependency-label">{t("dependencyImpact", locale)}</div>
+                                      <div className="dependency-impact-title">{t("impactedProjects", locale)}</div>
+                                      {node.impact.transitiveDependents.length === 0 && (
+                                        <div className="dependency-empty">{t("noTransitiveDependents", locale)}</div>
+                                      )}
+                                      {node.impact.transitiveDependents.length > 0 && (
+                                        <div className="dependency-chip-list">
+                                          {node.impact.transitiveDependents.map((name) => (
+                                            <button
+                                              key={name}
+                                              className={`dependency-chip impact ${activeDependencyProject === name ? "active" : ""}`}
+                                              onClick={() => {
+                                                setActiveDependencyProject(name);
+                                                setExpandedDependencyProjects((state) => (state.includes(name) ? state : [...state, name]));
+                                              }}
+                                            >
+                                              {name}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>}
+                      {dependencyView === "graph" && (
+                        <div className="dependency-graph-wrap">
+                          {dependencyGraphEdges.length === 0 ? (
+                            <div className="analysis-empty compact">{t("noInternalDependencies", locale)}</div>
+                          ) : (
+                            <>
+                              <div className="dependency-graph-toolbar">
+                                <button className="analysis-target-btn" onClick={resetDependencyGraphLayout}>
+                                  {t("fitView", locale)}
+                                </button>
+                                <button className="analysis-target-btn" onClick={() => setActiveDependencyProject("")} disabled={!activeDependencyProject}>
+                                  {t("clearSelection", locale)}
+                                </button>
+                                <button className="analysis-target-btn" onClick={() => setDependencyGraphFullscreen(true)}>
+                                  {t("fullscreenGraph", locale)}
+                                </button>
+                              </div>
+                              <div className="dependency-graph-canvas">
+                                <ReactFlow
+                                  nodes={dependencyGraphNodes}
+                                  edges={dependencyGraphEdges}
+                                  onNodesChange={onDependencyNodesChange}
+                                  fitView
+                                  proOptions={{ hideAttribution: true }}
+                                  onInit={setDependencyFlow}
+                                  nodesDraggable
+                                  elementsSelectable
+                                  onNodeClick={(_, node) => setActiveDependencyProject((current) => (current === node.id ? "" : node.id))}
+                                  onPaneClick={() => setActiveDependencyProject("")}
+                                >
+                                  <Background color="rgba(138, 173, 217, 0.12)" gap={22} />
+                                  <Controls showInteractive={false} />
+                                </ReactFlow>
+                              </div>
+                              {dependencyContext?.node && (
+                                <div className="dependency-graph-summary">
+                                  <div className="dependency-label">{t("selected", locale)}</div>
+                                  <div className="dependency-graph-summary-title">{dependencyContext.node.project}</div>
+                                  <div className="dependency-label">{t("dependsOn", locale)}</div>
+                                  <div className="dependency-chip-list">
+                                    {dependencyContext.node.impact.directDependencies.map((name) => (
+                                      <button key={`dep-${name}`} className="dependency-chip related" onClick={() => setActiveDependencyProject(name)}>
+                                        {name}
+                                      </button>
+                                    ))}
+                                    {dependencyContext.node.impact.directDependencies.length === 0 && <span className="dependency-empty">{t("none", locale)}</span>}
+                                  </div>
+                                  <div className="dependency-label">{t("impactedProjects", locale)}</div>
+                                  <div className="dependency-chip-list">
+                                    {dependencyContext.node.impact.transitiveDependents.map((name) => (
+                                      <button key={`impact-${name}`} className="dependency-chip impact" onClick={() => setActiveDependencyProject(name)}>
+                                        {name}
+                                      </button>
+                                    ))}
+                                    {dependencyContext.node.impact.transitiveDependents.length === 0 && (
+                                      <span className="dependency-empty">{t("noTransitiveDependents", locale)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="analysis-section">
+                <div className="analysis-section-head">
+                  <div>
                     <div className="analysis-section-title">{t("affectedProjects", locale)}</div>
                     <div className="analysis-section-description">{t("affectedDescription", locale)}</div>
                   </div>
@@ -1460,6 +1888,42 @@ export default function App() {
           )}
         </section>
       </div>
+
+      {dependencyGraphFullscreen && view === "analyze" && dependencyView === "graph" && (
+        <div className="dependency-graph-fullscreen">
+          <div className="dependency-graph-fullscreen-head">
+            <strong>{t("workspaceDependencies", locale)}</strong>
+            <div className="dependency-graph-toolbar">
+              <button className="analysis-target-btn" onClick={resetDependencyGraphLayout}>
+                {t("fitView", locale)}
+              </button>
+              <button className="analysis-target-btn" onClick={() => setActiveDependencyProject("")} disabled={!activeDependencyProject}>
+                {t("clearSelection", locale)}
+              </button>
+              <button className="analysis-target-btn" onClick={() => setDependencyGraphFullscreen(false)}>
+                {t("exitFullscreen", locale)}
+              </button>
+            </div>
+          </div>
+          <div className="dependency-graph-fullscreen-canvas">
+            <ReactFlow
+              nodes={dependencyGraphNodes}
+              edges={dependencyGraphEdges}
+              onNodesChange={onDependencyNodesChange}
+              fitView
+              proOptions={{ hideAttribution: true }}
+              onInit={setDependencyFlow}
+              nodesDraggable
+              elementsSelectable
+              onNodeClick={(_, node) => setActiveDependencyProject((current) => (current === node.id ? "" : node.id))}
+              onPaneClick={() => setActiveDependencyProject("")}
+            >
+              <Background color="rgba(138, 173, 217, 0.12)" gap={22} />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          </div>
+        </div>
+      )}
 
       <footer className="app-footer">
         <span className="footer-left-placeholder" />

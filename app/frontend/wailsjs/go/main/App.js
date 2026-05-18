@@ -6,6 +6,10 @@ export function AnalyzeAffected(arg1) {
   return window['go']['main']['App']['AnalyzeAffected'](arg1);
 }
 
+export function AnalyzeDependencies(arg1) {
+  return window['go']['main']['App']['AnalyzeDependencies'](arg1);
+}
+
 export function AnalyzeWorkspace(arg1) {
   return window['go']['main']['App']['AnalyzeWorkspace'](arg1);
 }

@@ -1,0 +1,11 @@
+{
+  "name": "@nx-basic/ui",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('nx ui build ok')\"",
+    "test": "node -e \"console.log('nx ui test ok')\""
+  },
+  "dependencies": {
+    "@nx-basic/tokens": "0.1.0"
+  }
+}

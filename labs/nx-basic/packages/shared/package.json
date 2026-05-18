@@ -1,0 +1,11 @@
+{
+  "name": "@nx-basic/shared",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node -e \"console.log('nx shared build ok')\"",
+    "test": "node -e \"console.log('nx shared test ok')\""
+  },
+  "dependencies": {
+    "@nx-basic/tokens": "0.1.0"
+  }
+}

@@ -200,6 +200,124 @@ export namespace config {
 
 }
 
+export namespace deps {
+	
+	export class DependencyEdge {
+	    from: string;
+	    to: string;
+	    dependency: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DependencyEdge(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.dependency = source["dependency"];
+	    }
+	}
+	export class DependencyImpact {
+	    project: string;
+	    directDependencies: string[];
+	    directDependents: string[];
+	    transitiveDependents: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DependencyImpact(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.project = source["project"];
+	        this.directDependencies = source["directDependencies"];
+	        this.directDependents = source["directDependents"];
+	        this.transitiveDependents = source["transitiveDependents"];
+	    }
+	}
+	export class DependencyNode {
+	    project: string;
+	    path: string;
+	    packageName: string;
+	    dependsOn: string[];
+	    usedBy: string[];
+	    impact: DependencyImpact;
+	
+	    static createFrom(source: any = {}) {
+	        return new DependencyNode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.project = source["project"];
+	        this.path = source["path"];
+	        this.packageName = source["packageName"];
+	        this.dependsOn = source["dependsOn"];
+	        this.usedBy = source["usedBy"];
+	        this.impact = this.convertValues(source["impact"], DependencyImpact);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Report {
+	    workspaceRoot: string;
+	    nodes: DependencyNode[];
+	    edges: DependencyEdge[];
+	    // Go type: time
+	    generatedAt: any;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Report(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workspaceRoot = source["workspaceRoot"];
+	        this.nodes = this.convertValues(source["nodes"], DependencyNode);
+	        this.edges = this.convertValues(source["edges"], DependencyEdge);
+	        this.generatedAt = this.convertValues(source["generatedAt"], null);
+	        this.message = source["message"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace groups {
 	
 	export class Group {
