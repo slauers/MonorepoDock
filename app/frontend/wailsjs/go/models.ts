@@ -245,6 +245,85 @@ export namespace groups {
 
 }
 
+export namespace ports {
+	
+	export class Candidate {
+	    port: number;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Candidate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.port = source["port"];
+	        this.source = source["source"];
+	    }
+	}
+	export class Conflict {
+	    port: number;
+	    pid: number;
+	    command: string;
+	    managed: boolean;
+	    managedProcessID: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Conflict(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.port = source["port"];
+	        this.pid = source["pid"];
+	        this.command = source["command"];
+	        this.managed = source["managed"];
+	        this.managedProcessID = source["managedProcessID"];
+	    }
+	}
+	export class Report {
+	    workDir: string;
+	    command: string;
+	    ports: Candidate[];
+	    conflicts: Conflict[];
+	    suggestedPort: number;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Report(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workDir = source["workDir"];
+	        this.command = source["command"];
+	        this.ports = this.convertValues(source["ports"], Candidate);
+	        this.conflicts = this.convertValues(source["conflicts"], Conflict);
+	        this.suggestedPort = source["suggestedPort"];
+	        this.message = source["message"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace profiles {
 	
 	export class ProfileItem {
@@ -351,6 +430,7 @@ export namespace runner {
 	    id: string;
 	    command: string;
 	    workDir: string;
+	    pid: number;
 	    // Go type: time
 	    startedAt: any;
 	    // Go type: time
@@ -371,6 +451,7 @@ export namespace runner {
 	        this.id = source["id"];
 	        this.command = source["command"];
 	        this.workDir = source["workDir"];
+	        this.pid = source["pid"];
 	        this.startedAt = this.convertValues(source["startedAt"], null);
 	        this.stoppedAt = this.convertValues(source["stoppedAt"], null);
 	        this.exitCode = source["exitCode"];

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "./stores/useWorkspaceStore";
-import type { ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
+import type { PortCheckReport, ProcessInfo, ProfileItem, ProfileRuntimeState, RunProfile, RuntimeSession, Target, WorkspaceGroup } from "./types/workspace";
 import { getLocale, t } from "./i18n";
 import { wailsService } from "./services/wails";
 
@@ -15,6 +15,12 @@ const ICON = {
   copy: "\u29C9",
   close: "\u00D7",
   plus: "+",
+  custom: ">_",
+};
+
+type PendingPortDecision = {
+  target: Target;
+  report: PortCheckReport;
 };
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
@@ -260,6 +266,9 @@ export default function App() {
   const [stoppingProfileIDs, setStoppingProfileIDs] = useState<string[]>([]);
   const [activeProfileMenuID, setActiveProfileMenuID] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [copyNotice, setCopyNotice] = useState("");
+  const [pendingPortDecision, setPendingPortDecision] = useState<PendingPortDecision | null>(null);
+  const [portActionLoading, setPortActionLoading] = useState(false);
 
   const loadProfiles = async () => {
     try {
@@ -408,6 +417,8 @@ export default function App() {
     try {
       await navigator.clipboard.writeText(value);
       setCopiedKey(key);
+      setCopyNotice("Copied to clipboard");
+      window.setTimeout(() => setCopyNotice(""), 1200);
       window.setTimeout(() => setCopiedKey((current) => (current === key ? "" : current)), 1500);
     } catch {
       setCopiedKey("");
@@ -423,6 +434,71 @@ export default function App() {
     setClosedLogTabs((state) => state.filter((id) => id !== processId));
     setActiveLogProcess(processId);
     setView("logs");
+  };
+
+  const runTargetWithPortGuard = async (target: Target) => {
+    try {
+      const report = await wailsService.checkPortConflicts(target.workDir, target.command);
+      if (report.conflicts.length > 0) {
+        setPendingPortDecision({ target, report });
+        return;
+      }
+    } catch {
+      setRestoreMessage("Port check unavailable. Starting command...");
+      window.setTimeout(() => setRestoreMessage(""), 2000);
+    }
+    await runTarget(target);
+  };
+
+  const stopConflictsAndRun = async () => {
+    if (!pendingPortDecision) return;
+    setPortActionLoading(true);
+    try {
+      for (const conflict of pendingPortDecision.report.conflicts) {
+        await wailsService.stopPortProcess(
+          pendingPortDecision.target.workDir,
+          conflict.pid,
+          conflict.managedProcessID || "",
+        );
+      }
+      await runTarget(pendingPortDecision.target);
+      setPendingPortDecision(null);
+    } finally {
+      setPortActionLoading(false);
+    }
+  };
+
+  const runOnAnotherPort = async () => {
+    if (!pendingPortDecision) return;
+    const suggested = pendingPortDecision.report.suggestedPort || (pendingPortDecision.report.conflicts[0]?.port ?? 3000) + 1;
+    const raw = window.prompt("Port", String(suggested));
+    const port = Number(raw);
+    if (!raw || !Number.isInteger(port) || port <= 0 || port > 65535) return;
+    setPortActionLoading(true);
+    try {
+      const command = await wailsService.commandWithPort(
+        pendingPortDecision.target.workDir,
+        pendingPortDecision.target.command,
+        port,
+      );
+      await runTarget(pendingPortDecision.target, command);
+      setPendingPortDecision(null);
+    } finally {
+      setPortActionLoading(false);
+    }
+  };
+
+  const runCustomCommand = async (workDir: string, suggested: string) => {
+    const raw = window.prompt("Run custom command", suggested);
+    const command = raw?.trim() ?? "";
+    if (!command) return;
+    await runTargetWithPortGuard({
+      id: `custom:${workDir}:${command}`,
+      name: command,
+      command,
+      workDir,
+      kind: "custom",
+    });
   };
 
   const runProfile = async (profileId: string) => {
@@ -1007,7 +1083,7 @@ export default function App() {
                         <td className="mono">{row.target.command}</td>
                         <td>
                           <div className="action-group">
-                            <button className="icon icon-play" title={t("play", locale)} onClick={() => void runTarget(row.target)} disabled={busy}>
+                            <button className="icon icon-play" title={t("play", locale)} onClick={() => void runTargetWithPortGuard(row.target)} disabled={busy}>
                               {ICON.play}
                             </button>
                             <button className="icon icon-stop" title={t("stop", locale)} onClick={() => running && void stopProcess(running.id)} disabled={!running}>
@@ -1015,6 +1091,13 @@ export default function App() {
                             </button>
                             <button className="icon icon-restart" title={t("restart", locale)} onClick={() => running && void restartProcess(running.id)} disabled={!running}>
                               {ICON.restart}
+                            </button>
+                            <button
+                              className="icon icon-custom"
+                              title="Run custom command"
+                              onClick={() => void runCustomCommand(row.target.workDir, row.target.command)}
+                            >
+                              {ICON.custom}
                             </button>
                             {running && (
                               <button className="icon icon-logs" title={t("openLogs", locale)} onClick={() => openLogsForProcess(running.id)}>
@@ -1104,7 +1187,7 @@ export default function App() {
                             title={t("runAgain", locale)}
                             aria-label={t("runAgain", locale)}
                             onClick={() =>
-                              void runTarget({
+                              void runTargetWithPortGuard({
                                 id: process.id,
                                 name: process.command,
                                 command: process.command,
@@ -1204,7 +1287,7 @@ export default function App() {
                           <div><strong>{project.name}</strong></div>
                           <div className="action-group" style={{ margin: "4px 0" }}>
                             {(workspaceProject?.targets ?? []).slice(0, 4).map((target) => (
-                              <button key={target.id} className="action-text-btn" onClick={() => void runTarget(target)}>
+                              <button key={target.id} className="action-text-btn" onClick={() => void runTargetWithPortGuard(target)}>
                                 {target.name}
                               </button>
                             ))}
@@ -1222,6 +1305,7 @@ export default function App() {
             <div className={view === "logs" ? "logs-card logs-card-large" : "logs-card"}>
               <div className="logs-head logs-head-row">
                 <span>{t("logs", locale)}</span>
+                {copyNotice && <span className="copy-notice">{copyNotice}</span>}
                 <button
                   className={`copy-btn copy-header-btn ${copiedKey === "all-logs" ? "is-copied" : ""}`}
                   onClick={() => void copyAllVisibleLogs()}
@@ -1312,6 +1396,34 @@ export default function App() {
           {t("by", locale)}
         </button>
       </footer>
+      {pendingPortDecision && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="port-dialog" role="dialog" aria-modal="true" aria-label="Port conflict">
+            <div className="port-dialog-title">Port already in use</div>
+            <div className="port-dialog-subtitle">
+              {pendingPortDecision.report.conflicts.map((conflict) => (
+                <div key={`${conflict.port}-${conflict.pid}`}>
+                  Port <strong>{conflict.port}</strong> is used by{" "}
+                  <span className="mono">{conflict.command || `PID ${conflict.pid}`}</span>
+                  {conflict.managed ? " (MonoDock)" : ""}
+                </div>
+              ))}
+            </div>
+            <div className="port-dialog-command mono">{pendingPortDecision.target.command}</div>
+            <div className="port-dialog-actions">
+              <button className="restore-btn" disabled={portActionLoading} onClick={() => void stopConflictsAndRun()}>
+                Stop existing
+              </button>
+              <button className="action-text-btn" disabled={portActionLoading} onClick={() => void runOnAnotherPort()}>
+                Run on another port
+              </button>
+              <button className="ignore-btn" disabled={portActionLoading} onClick={() => setPendingPortDecision(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
     </>
   );

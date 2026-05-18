@@ -29,7 +29,7 @@ type WorkspaceState = {
   chooseWorkspace: () => Promise<void>;
   inspect: (root: string) => Promise<void>;
   inspectGroup: (groupID: string) => Promise<void>;
-  runTarget: (target: Target) => Promise<void>;
+  runTarget: (target: Target, commandOverride?: string) => Promise<void>;
   stopProcess: (processId: string) => Promise<void>;
   restartProcess: (processId: string) => Promise<void>;
   setActiveLogProcess: (processId: string) => void;
@@ -137,16 +137,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({ loading: false });
     }
   },
-  runTarget: async (target: Target) => {
-    const key = `${target.workDir}::${target.command}`;
-    const busy = get().isTargetBusy(target);
+  runTarget: async (target: Target, commandOverride?: string) => {
+    const command = commandOverride?.trim() || target.command;
+    const key = `${target.workDir}::${command}`;
+    const busy = !commandOverride && get().isTargetBusy(target);
     if (busy) {
       return;
     }
 
     set((state) => ({ launchingTargetKeys: [...state.launchingTargetKeys, key] }));
     try {
-      const process = await wailsService.runCommand(target.workDir, target.command);
+      const process = await wailsService.runCommand(target.workDir, command);
       set((state) => ({
         processes: upsertProcess(state.processes, process),
         activeLogProcessId: process.id,

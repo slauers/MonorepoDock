@@ -66,10 +66,19 @@ type manifest struct {
 	Scripts map[string]string `json:"scripts"`
 }
 
+type nxProjectManifest struct {
+	Name        string                 `json:"name"`
+	ProjectType string                 `json:"projectType"`
+	Targets     map[string]interface{} `json:"targets"`
+}
+
 func findProjects(root, packageManager string) ([]Project, error) {
 	projectsByPath := map[string]Project{}
 
 	if err := collectPackageJSONProjects(root, packageManager, projectsByPath); err != nil {
+		return nil, err
+	}
+	if err := collectNxProjects(root, projectsByPath); err != nil {
 		return nil, err
 	}
 	if err := collectGoProjects(root, projectsByPath); err != nil {
@@ -166,6 +175,113 @@ func parsePackageJSONProject(packageJSONPath, root, packageManager string) (Proj
 		Name:    name,
 		Path:    rel,
 		Scripts: scripts,
+		Targets: targets,
+	}, true, nil
+}
+
+func collectNxProjects(root string, out map[string]Project) error {
+	return filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			base := d.Name()
+			if base == "node_modules" || base == ".git" || base == "dist" || base == "build" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.Name() != "project.json" {
+			return nil
+		}
+
+		project, ok, err := parseNxProject(path, root)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+
+		existing, found := out[project.Path]
+		if found {
+			seen := map[string]bool{}
+			for _, t := range existing.Targets {
+				seen[t.Name] = true
+			}
+			for _, t := range project.Targets {
+				if !seen[t.Name] {
+					existing.Targets = append(existing.Targets, t)
+				}
+			}
+			if existing.Name == "" || existing.Name == existing.Path {
+				existing.Name = project.Name
+			}
+			out[project.Path] = existing
+		} else {
+			out[project.Path] = project
+		}
+		return nil
+	})
+}
+
+func parseNxProject(projectJSONPath, root string) (Project, bool, error) {
+	raw, err := os.ReadFile(projectJSONPath)
+	if err != nil {
+		return Project{}, false, err
+	}
+
+	var doc nxProjectManifest
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return Project{}, false, nil
+	}
+	projectDir := filepath.Dir(projectJSONPath)
+	rel, err := filepath.Rel(root, projectDir)
+	if err != nil {
+		return Project{}, false, err
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." {
+		rel = "/"
+	}
+
+	name := strings.TrimSpace(doc.Name)
+	if name == "" {
+		name = rel
+	}
+
+	targetNameSet := map[string]struct{}{}
+	for targetName := range doc.Targets {
+		targetNameSet[targetName] = struct{}{}
+	}
+	// Nx plugin-inferred projects often keep "targets": {} in project.json.
+	// Add a conservative default set so the workspace remains operable in MonoDock.
+	if len(targetNameSet) == 0 && strings.TrimSpace(doc.ProjectType) != "" {
+		for _, targetName := range []string{"dev", "build", "test", "lint", "serve", "preview", "typecheck"} {
+			targetNameSet[targetName] = struct{}{}
+		}
+	}
+	if len(targetNameSet) == 0 {
+		return Project{}, false, nil
+	}
+
+	targetNames := make([]string, 0, len(targetNameSet))
+	targets := make([]Target, 0, len(targetNameSet))
+	for targetName := range targetNameSet {
+		targetNames = append(targetNames, targetName)
+		targets = append(targets, Target{
+			ID:      targetID(rel, "nx", targetName),
+			Name:    targetName,
+			Command: "npx nx run " + name + ":" + targetName,
+			WorkDir: root,
+			Kind:    "nx",
+		})
+	}
+
+	return Project{
+		Name:    name,
+		Path:    rel,
+		Scripts: targetNames,
 		Targets: targets,
 	}, true, nil
 }

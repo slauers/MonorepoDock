@@ -1301,6 +1301,12 @@ tbody tr:hover {
   border-color: #735c2f;
 }
 
+.icon-custom {
+  color: #7ec8ff;
+  border-color: #355c94;
+  font-size: 11px;
+}
+
 .icon-logs {
   color: #84b8ff;
   border-color: #355c94;
@@ -1331,6 +1337,64 @@ tbody tr:hover {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.copy-notice {
+  margin-left: auto;
+  font-size: 11px;
+  color: #7fc1ff;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 12, 24, 0.58);
+}
+
+.port-dialog {
+  width: min(460px, calc(100vw - 40px));
+  border: 1px solid #254265;
+  border-radius: 8px;
+  background: #0f1b2d;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  padding: 18px;
+}
+
+.port-dialog-title {
+  color: #f4f8ff;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.port-dialog-subtitle {
+  color: #9eb3cf;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.port-dialog-command {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: #0a1424;
+  color: #dbe9ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.port-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .copy-btn {
@@ -1843,6 +1907,11 @@ pre {
   border-color: #e6d3b0;
 }
 
+.theme-light .icon-custom {
+  color: #1f65e5;
+  border-color: #bcd2f7;
+}
+
 .theme-light .action-text-btn {
   border-color: #e6d3b0;
   background: #ffffff;
@@ -2234,6 +2303,10 @@ pre {
 
 .theme-hacker .icon-restart {
   color: #e6d84f;
+}
+
+.theme-hacker .icon-custom {
+  color: #84ff84;
 }
 
 .theme-hacker .icon-logs {

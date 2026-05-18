@@ -10,8 +10,16 @@ export function AnalyzeWorkspace(arg1) {
   return window['go']['main']['App']['AnalyzeWorkspace'](arg1);
 }
 
+export function CheckPortConflicts(arg1, arg2) {
+  return window['go']['main']['App']['CheckPortConflicts'](arg1, arg2);
+}
+
 export function CloseApp() {
   return window['go']['main']['App']['CloseApp']();
+}
+
+export function CommandWithPort(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CommandWithPort'](arg1, arg2, arg3);
 }
 
 export function DeleteGroup(arg1) {
@@ -92,6 +100,10 @@ export function SaveProfile(arg1) {
 
 export function StopCommand(arg1) {
   return window['go']['main']['App']['StopCommand'](arg1);
+}
+
+export function StopPortProcess(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StopPortProcess'](arg1, arg2, arg3);
 }
 
 export function StopProfile(arg1) {
