@@ -1950,6 +1950,107 @@ pre {
   color: #1d2633;
 }
 
+.theme-light .dependency-view-toggle {
+  border-color: #c7d8ee;
+  background: #ffffff;
+}
+
+.theme-light .dependency-view-toggle button {
+  color: #50637e;
+}
+
+.theme-light .dependency-view-toggle button.active {
+  background: #e9f1ff;
+  color: #214f9d;
+}
+
+.theme-light .dependency-graph-canvas,
+.theme-light .dependency-graph-fullscreen-canvas {
+  border-color: #d4dfef;
+  background: #f7fbff;
+}
+
+.theme-light .dependency-graph-canvas .react-flow__controls {
+  border-color: #d1deef;
+}
+
+.theme-light .dependency-graph-canvas .react-flow__controls-button {
+  background: #ffffff;
+  border-bottom-color: #d1deef;
+  color: #3a5f93;
+}
+
+.theme-light .dependency-graph-canvas .react-flow__controls-button:hover {
+  background: #edf4ff;
+}
+
+.theme-light .dependency-graph-summary {
+  border-color: #d4dfef;
+  background: #ffffff;
+}
+
+.theme-light .dependency-graph-summary-title {
+  color: #23364f;
+}
+
+.theme-light .react-flow__node.dependency-graph-node {
+  border-color: #aec2df;
+  background: #ffffff;
+}
+
+.theme-light .react-flow__node.dependency-graph-node.selected {
+  border-color: #4f86d7;
+  box-shadow: 0 0 0 1px rgba(79, 134, 215, 0.28), 0 0 12px rgba(79, 134, 215, 0.16);
+}
+
+.theme-light .react-flow__node.dependency-graph-node.dependency {
+  border-color: #6e93c9;
+}
+
+.theme-light .react-flow__node.dependency-graph-node.dependent {
+  border-color: #4e9da2;
+}
+
+.theme-light .react-flow__node.dependency-graph-node.transitive {
+  border-color: #8798b7;
+}
+
+.theme-light .dependency-graph-node-title {
+  color: #23364f;
+}
+
+.theme-light .dependency-graph-node-meta {
+  color: #5f7391;
+}
+
+.theme-dark .dependency-card {
+  border-color: #253a58;
+  background: #0d182a;
+}
+
+.theme-dark .dependency-card.related {
+  border-color: #3a6399;
+}
+
+.theme-dark .dependency-card.active {
+  border-color: #5a8ed2;
+  background: #13243d;
+}
+
+.theme-dark .dependency-card-head:hover {
+  background: rgba(98, 146, 213, 0.12);
+}
+
+.theme-dark .dependency-card-body,
+.theme-dark .dependency-impact {
+  border-top-color: #253a58;
+}
+
+.theme-dark .dependency-chip {
+  border-color: #36557e;
+  background: #0b1524;
+}
+
 .theme-hacker .dependency-graph-fullscreen {
   background: #000000;
   border-top-color: #195219;
@@ -1957,6 +2058,142 @@ pre {
 
 .theme-hacker .dependency-graph-fullscreen-head {
   color: #86ff86;
+}
+
+.theme-hacker .dependency-view-toggle {
+  border-color: #2f7f2f;
+  background: #000000;
+  border-radius: 0;
+}
+
+.theme-hacker .dependency-view-toggle button {
+  color: #68d968;
+  border-radius: 0;
+}
+
+.theme-hacker .dependency-view-toggle button.active {
+  background: #002100;
+  color: #8fff8f;
+}
+
+.theme-hacker .dependency-graph-canvas,
+.theme-hacker .dependency-graph-fullscreen-canvas {
+  border-color: #2f7f2f;
+  background: #001000;
+  border-radius: 0;
+}
+
+.theme-hacker .dependency-graph-canvas .react-flow__controls {
+  border-color: #2f7f2f;
+}
+
+.theme-hacker .dependency-graph-canvas .react-flow__controls-button {
+  background: #001000;
+  border-bottom-color: #2f7f2f;
+  color: #86ff86;
+}
+
+.theme-hacker .dependency-graph-canvas .react-flow__controls-button:hover {
+  background: #002100;
+}
+
+.theme-hacker .dependency-graph-summary {
+  border-color: #2f7f2f;
+  background: #000000;
+  border-radius: 0;
+}
+
+.theme-hacker .dependency-graph-summary-title {
+  color: #8fff8f;
+}
+
+.theme-hacker .react-flow__node.dependency-graph-node {
+  border-color: #2f7f2f;
+  background: #000000;
+  border-radius: 0;
+}
+
+.theme-hacker .react-flow__node.dependency-graph-node.selected {
+  border-color: #8fff8f;
+  box-shadow: 0 0 0 1px rgba(143, 255, 143, 0.4), 0 0 12px rgba(111, 255, 111, 0.2);
+}
+
+.theme-hacker .react-flow__node.dependency-graph-node.dependency {
+  border-color: #56c956;
+}
+
+.theme-hacker .react-flow__node.dependency-graph-node.dependent {
+  border-color: #6eff6e;
+}
+
+.theme-hacker .react-flow__node.dependency-graph-node.transitive {
+  border-color: #4ca84c;
+}
+
+.theme-hacker .dependency-graph-node-title {
+  color: #8fff8f;
+}
+
+.theme-hacker .dependency-graph-node-meta {
+  color: #68d968;
+}
+
+.theme-hacker .dependency-card {
+  border-color: #2f7f2f;
+  background: #000000;
+  border-radius: 0;
+}
+
+.theme-hacker .dependency-card.related {
+  border-color: #56c956;
+}
+
+.theme-hacker .dependency-card.active {
+  border-color: #8fff8f;
+  background: #001000;
+  box-shadow: 0 0 0 1px rgba(143, 255, 143, 0.32);
+}
+
+.theme-hacker .dependency-card-head {
+  color: #8fff8f;
+}
+
+.theme-hacker .dependency-card-head:hover {
+  background: #001c00;
+}
+
+.theme-hacker .dependency-package,
+.theme-hacker .dependency-metric,
+.theme-hacker .dependency-empty {
+  color: #68d968;
+}
+
+.theme-hacker .dependency-card-body,
+.theme-hacker .dependency-impact {
+  border-top-color: #1f5a1f;
+}
+
+.theme-hacker .dependency-chip {
+  border-color: #2f7f2f;
+  background: #000000;
+  color: #8fff8f;
+  border-radius: 0;
+}
+
+.theme-hacker .dependency-chip.related {
+  border-color: #56c956;
+}
+
+.theme-hacker .dependency-chip.impact {
+  border-color: #4ca84c;
+  background: #001700;
+}
+
+.theme-hacker .dependency-chip:hover,
+.theme-hacker .dependency-chip.active {
+  border-color: #8fff8f;
+  background: #002300;
+  color: #b4ffb4;
 }
 
 .dependency-graph-canvas .react-flow__controls {
@@ -2638,6 +2875,138 @@ pre {
   color: #2f5fab;
 }
 
+.theme-light .analysis-section {
+  border-color: #dbe3ef;
+  background: #ffffff;
+}
+
+.theme-light .analysis-section-title {
+  color: #213044;
+}
+
+.theme-light .analysis-section-description,
+.theme-light .analysis-count,
+.theme-light .analysis-meta,
+.theme-light .analysis-empty,
+.theme-light .analysis-loading {
+  color: #627991;
+}
+
+.theme-light .analysis-primary-btn,
+.theme-light .analysis-secondary-btn,
+.theme-light .analysis-target-btn {
+  border-color: #c7d6ea;
+  background: #ffffff;
+  color: #2f4f74;
+}
+
+.theme-light .analysis-primary-btn {
+  border-color: #b9dcc8;
+  color: #1f7a4f;
+}
+
+.theme-light .analysis-secondary-btn {
+  border-color: #bcd2f7;
+  color: #1f65e5;
+}
+
+.theme-light .analysis-primary-btn:hover:not(:disabled),
+.theme-light .analysis-secondary-btn:hover:not(:disabled),
+.theme-light .analysis-target-btn:hover {
+  background: #f3f8ff;
+  border-color: #94b3e8;
+  color: #1f4ea2;
+}
+
+.theme-light .analysis-results {
+  background: #f8fbff;
+  border: 1px solid #e4ebf5;
+}
+
+.theme-light .analysis-details {
+  border-color: #dbe3ef;
+  background: #f8fbff;
+  color: #2b3b4f;
+}
+
+.theme-light .dependency-view-toggle {
+  border-color: #cfdaea;
+  background: #ffffff;
+}
+
+.theme-light .dependency-view-toggle button {
+  color: #41546a;
+}
+
+.theme-light .dependency-view-toggle button.active {
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #1f4ea2;
+}
+
+.theme-light .dependency-card {
+  border-color: #dbe3ef;
+  background: #ffffff;
+}
+
+.theme-light .dependency-card.related {
+  border-color: #c4d5f1;
+}
+
+.theme-light .dependency-card.active {
+  border-color: #8fb3eb;
+  box-shadow: 0 0 0 1px rgba(31, 101, 229, 0.16);
+}
+
+.theme-light .dependency-card-head:hover {
+  background: #f8fbff;
+}
+
+.theme-light .dependency-project-name {
+  color: #1f2d3f;
+}
+
+.theme-light .dependency-package,
+.theme-light .dependency-metric,
+.theme-light .dependency-empty {
+  color: #5f7893;
+}
+
+.theme-light .dependency-card-body,
+.theme-light .dependency-impact {
+  border-top-color: #e4ebf5;
+}
+
+.theme-light .dependency-label,
+.theme-light .dependency-impact-title {
+  color: #41546a;
+}
+
+.theme-light .dependency-chip {
+  border-color: #cfdaea;
+  background: #ffffff;
+  color: #38506d;
+}
+
+.theme-light .dependency-chip.related {
+  border-color: #bfd5f8;
+  background: #f1f7ff;
+  color: #2f5fab;
+}
+
+.theme-light .dependency-chip.impact {
+  border-color: #b9dcc8;
+  background: #eefcf4;
+  color: #1e6b48;
+}
+
+.theme-light .dependency-chip:hover,
+.theme-light .dependency-chip.active {
+  border-color: #94b3e8;
+  background: #eaf2ff;
+  color: #1f4ea2;
+}
+
 .theme-light .severity-critical {
   border-color: #f8b4b4;
   background: #fff1f1;
@@ -2805,6 +3174,13 @@ pre {
 .theme-hacker .tab,
 .theme-hacker .table-wrap,
 .theme-hacker .logs-card,
+.theme-hacker .analysis-section,
+.theme-hacker .analysis-results,
+.theme-hacker .analysis-item,
+.theme-hacker .analysis-details,
+.theme-hacker .analysis-primary-btn,
+.theme-hacker .analysis-secondary-btn,
+.theme-hacker .analysis-target-btn,
 .theme-hacker pre {
   background: #000000;
   border-color: #2f7f2f;
@@ -2819,6 +3195,10 @@ pre {
 .theme-hacker .profile-popover-empty,
 .theme-hacker .profiles-empty,
 .theme-hacker .runtime-meta,
+.theme-hacker .analysis-section-description,
+.theme-hacker .analysis-count,
+.theme-hacker .analysis-meta,
+.theme-hacker .analysis-empty,
 .theme-hacker p,
 .theme-hacker .head-stats span,
 .theme-hacker .status-strip {
@@ -3020,9 +3400,30 @@ pre {
 }
 
 .theme-hacker .analysis-item {
-  border-color: #2f7f2f;
-  background: #000000;
-  border-radius: 0;
+  margin-bottom: 6px;
+}
+
+.theme-hacker .analysis-section-head {
+  border-bottom: 1px solid #1f5a1f;
+  padding-bottom: 8px;
+}
+
+.theme-hacker .analysis-section-title,
+.theme-hacker .analysis-title {
+  color: #8fff8f;
+}
+
+.theme-hacker .analysis-primary-btn:hover:not(:disabled),
+.theme-hacker .analysis-secondary-btn:hover:not(:disabled),
+.theme-hacker .analysis-target-btn:hover {
+  background: #002100;
+  border-color: #3ea53e;
+  color: #a5ffa5;
+}
+
+.theme-hacker .analysis-primary-btn:disabled,
+.theme-hacker .analysis-secondary-btn:disabled {
+  opacity: 0.6;
 }
 
 .theme-hacker .analysis-item a {
