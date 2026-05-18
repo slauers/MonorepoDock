@@ -3,6 +3,7 @@ import { wailsService } from "../services/wails";
 import type {
   AffectedReport,
   AnalysisReport,
+  DependencyReport,
   LogEntry,
   ProcessInfo,
   RecentWorkspace,
@@ -21,6 +22,9 @@ type WorkspaceState = {
   affected: AffectedReport | null;
   affectedLoading: boolean;
   affectedError: string;
+  dependencies: DependencyReport | null;
+  dependenciesLoading: boolean;
+  dependenciesError: string;
   launchingTargetKeys: string[];
   activeLogProcessId: string;
   selectedPath: string;
@@ -42,6 +46,7 @@ type WorkspaceState = {
   bindEvents: () => void;
   analyzeWorkspace: () => Promise<void>;
   analyzeAffected: () => Promise<void>;
+  analyzeDependencies: () => Promise<void>;
 };
 
 function upsertProcess(items: ProcessInfo[], next: ProcessInfo): ProcessInfo[] {
@@ -74,6 +79,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   affected: null,
   affectedLoading: false,
   affectedError: "",
+  dependencies: null,
+  dependenciesLoading: false,
+  dependenciesError: "",
   launchingTargetKeys: [],
   activeLogProcessId: "",
   selectedPath: "",
@@ -98,7 +106,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
   inspect: async (root: string) => {
     try {
-      set({ loading: true, error: "" });
+      set({
+        loading: true,
+        error: "",
+        analysis: null,
+        analysisError: "",
+        affected: null,
+        affectedError: "",
+        dependencies: null,
+        dependenciesError: "",
+      });
       const [summary, processes] = await Promise.all([
         wailsService.inspectWorkspace(root),
         wailsService.listProcesses(),
@@ -120,7 +137,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
   inspectGroup: async (groupID: string) => {
     try {
-      set({ loading: true, error: "" });
+      set({
+        loading: true,
+        error: "",
+        analysis: null,
+        analysisError: "",
+        affected: null,
+        affectedError: "",
+        dependencies: null,
+        dependenciesError: "",
+      });
       const [summary, processes] = await Promise.all([
         wailsService.inspectGroup(groupID),
         wailsService.listProcesses(),
@@ -284,6 +310,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({ affectedError: message });
     } finally {
       set({ affectedLoading: false });
+    }
+  },
+  analyzeDependencies: async () => {
+    const root = get().selectedPath || get().summary?.rootPath || "";
+    if (!root) {
+      return;
+    }
+    try {
+      set({ dependenciesLoading: true, dependenciesError: "" });
+      const report = await wailsService.analyzeDependencies(root);
+      set({ dependencies: report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to analyze workspace dependencies";
+      set({ dependenciesError: message });
+    } finally {
+      set({ dependenciesLoading: false });
     }
   },
 }));
