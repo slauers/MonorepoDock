@@ -581,6 +581,26 @@ export default function App() {
     const rowHeight = 102;
     const paddingY = 24;
     const selectedNode = activeDependencyProject ? nodeByProject.get(activeDependencyProject) : undefined;
+    const graphPalette = hackerMode
+      ? {
+          upstream: "#6fff6f",
+          downstream: "#8bff8b",
+          transitive: "#56c956",
+          neutral: "#2f7f2f",
+        }
+      : theme === "light"
+        ? {
+            upstream: "#2f6fdb",
+            downstream: "#1d8a84",
+            transitive: "#637ea7",
+            neutral: "#8aa4c8",
+          }
+      : {
+          upstream: "#66a8ff",
+          downstream: "#53d4cf",
+          transitive: "#5b7fb4",
+          neutral: "#36587f",
+        };
 
     for (const node of sourceNodes) {
       const level = levelMemo.get(node.project) ?? 0;
@@ -620,7 +640,13 @@ export default function App() {
         dependencyContext?.related.has(edge.from) && dependencyContext?.related.has(edge.to),
       );
       const isTransitiveLink = selectedNodePresent && isRelatedLink && !isSelectedLink;
-      const stroke = isUpstreamLink ? "#66a8ff" : isDownstreamLink ? "#53d4cf" : isTransitiveLink ? "#5b7fb4" : "#36587f";
+      const stroke = isUpstreamLink
+        ? graphPalette.upstream
+        : isDownstreamLink
+          ? graphPalette.downstream
+          : isTransitiveLink
+            ? graphPalette.transitive
+            : graphPalette.neutral;
       const opacity = selectedNodePresent ? (isSelectedLink ? 1 : isTransitiveLink ? 0.86 : 0.22) : 0.68;
       const width = isSelectedLink ? 2.2 : isTransitiveLink ? 1.8 : 1.2;
       const shouldAnimate = selectedNodePresent && (isSelectedLink || isTransitiveLink);
@@ -645,7 +671,7 @@ export default function App() {
     });
 
     return { nodes: flowNodes, edges: flowEdges };
-  }, [dependencies, activeDependencyProject, dependencyContext]);
+  }, [dependencies, activeDependencyProject, dependencyContext, hackerMode, theme]);
   useEffect(() => {
     setDependencyGraphNodes((current) => {
       const previousPositionByID = new Map<string, Node["position"]>();
